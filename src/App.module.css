@@ -1,0 +1,122 @@
+/* src/App.module.css */
+
+.app {
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 280px 1fr 340px;
+  background: #0b1020;
+  color: #e6edf3;
+  overflow: hidden;
+}
+
+.main {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  min-width: 0;
+  background: #070b14; /* Color de fondo base para el canvas */
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 16, 30, 0.85);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+}
+
+.metaTitle {
+  display: grid;
+  gap: 2px;
+  align-content: center;
+  min-width: 0;
+}
+
+.metaTitle strong {
+  font-size: 15px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.small {
+  font-size: 11px;
+  opacity: 0.6;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+/* Reutilizamos el estilo de botón aquí o lo dejamos global */
+.btn {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: #e6edf3;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.15s ease;
+}
+
+.btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.btn.danger {
+  background: rgba(210, 55, 80, 0.10);
+  border-color: rgba(210, 55, 80, 0.30);
+}
+
+.btn.danger:hover {
+  background: rgba(210, 55, 80, 0.16);
+}
+
+.canvasWrap {
+  height: 100%;
+  min-height: 0;
+  position: relative;
+}
+
+.errors {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 12px;
+  background: rgba(10, 16, 30, 0.85);
+  backdrop-filter: blur(10px);
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.errItem, .okItem, .neutralItem {
+  padding: 10px 14px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  border: 1px solid transparent;
+}
+
+.errItem {
+  border-color: rgba(210, 55, 80, 0.25);
+  background: rgba(210, 55, 80, 0.10);
+  color: #ffb3b3;
+}
+
+.okItem {
+  border-color: rgba(40, 180, 120, 0.25);
+  background: rgba(40, 180, 120, 0.10);
+  color: #b3ffda;
+}
+
+.neutralItem {
+  border-color: rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.03);
+  opacity: 0.8;
+}

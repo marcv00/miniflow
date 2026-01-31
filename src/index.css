@@ -1,0 +1,72 @@
+/* 1. Resets y Base Global */
+html, body, #root { 
+  height: 100%; 
+  width: 100%; 
+  margin: 0; 
+  padding: 0;
+}
+
+:root {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  color-scheme: dark;
+}
+
+* { 
+  box-sizing: border-box; 
+}
+
+body { 
+  background: #0b1020; 
+  color: #e6edf3; 
+  overflow: hidden; /* Evita scrolls extraños fuera del layout principal */
+}
+
+/* 2. Overrides de ReactFlow (Necesario aquí porque son clases internas) */
+.react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(0,0,0,0.35);
+  background: rgba(120, 180, 255, 0.95);
+}
+
+.react-flow__edge-path { 
+  stroke: rgba(230, 237, 243, 0.55); 
+  stroke-width: 2; 
+}
+
+.react-flow__edge.selected .react-flow__edge-path { 
+  stroke: rgba(120, 180, 255, 0.9); 
+}
+
+.react-flow__edge-text { 
+  fill: rgba(230, 237, 243, 0.75); 
+  font-weight: 700; 
+}
+
+.react-flow__controls { 
+  border-radius: 12px; 
+  overflow: hidden; 
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35); 
+  border: none;
+}
+
+.react-flow__controls-button { 
+  background: rgba(255, 255, 255, 0.06); 
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10); 
+}
+
+.react-flow__controls-button:hover { 
+  background: rgba(255, 255, 255, 0.10); 
+}
+
+.react-flow__minimap { 
+  background: rgba(255, 255, 255, 0.06) !important; 
+  border: 1px solid rgba(255, 255, 255, 0.10) !important; 
+  border-radius: 12px; 
+  overflow: hidden; 
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35); 
+}
+
+.react-flow__background { 
+  opacity: 0.55; 
+}
