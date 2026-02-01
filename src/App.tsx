@@ -31,7 +31,28 @@ export default function App() {
             <button className={`${styles.btn} ${styles.danger}`} onClick={handlers.deleteCurrent}>
               Eliminar
             </button>
-            
+            <button 
+              className={styles.btn} 
+              style={{ backgroundColor: "#27ae60", color: "white", marginLeft: "10px" }}
+              onClick={async () => {
+                console.log("Intentando ejecutar motor Java...");
+                try {
+                  // Usamos un nombre fijo para probar sin que el navegador se bloquee
+                  const testName = "Carpeta_Nueva_Prueba"; 
+                  
+                  // Verificamos si la API existe antes de llamar
+                  if (window.electronAPI && window.electronAPI.runJavaTest) {
+                    await window.electronAPI.runJavaTest(testName);
+                  } else {
+                    console.error("La API de Electron no está disponible. Revisa el preload.");
+                  }
+                } catch (err) {
+                  console.error("Error en el flujo:", err);
+                }
+              }}
+            >
+              📁 Crear Carpeta Pro
+            </button>
             <input 
               ref={refs.fileInputRef}
               type="file" 

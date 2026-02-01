@@ -58,6 +58,40 @@ Para evitar colisiones de nombres y mantener el código limpio, utilizamos **CSS
 * **TypeScript**: Tipado estricto para reducir errores en el manejo de flujos.
 * **Electron**: Configuración disponible (`electron.d.ts`) para distribución de escritorio.
 
+
+## ☕ Guía de Desarrollo del Motor Java (Engine)
+
+Si quieres contribuir a la lógica central de MiniFlow, trabajarás en el módulo `java-engine`. Dado que el motor se comunica con la app de escritorio (Electron) mediante la entrada/salida estándar (STDIN/STDOUT), el flujo de trabajo es un poco distinto al de una aplicación Java tradicional.
+
+### 1. Requisitos Previos
+Antes de empezar, asegúrate de tener instalado:
+
+* **Java Development Kit (JDK) 17+**
+* **Apache Maven**: El motor depende de Maven para gestionar dependencias y generar el "Fat JAR".
+    * [Descarga Maven aquí](https://maven.apache.org/download.cgi)
+
+### 2. Configuración del PATH (Windows)
+Para ejecutar los comandos de construcción desde la raíz del proyecto, `mvn` debe ser accesible globalmente:
+1.  Extrae el zip de Maven en `C:\maven`.
+2.  Busca **Variables de Entorno** en Windows.
+3.  En **Variables del Sistema**, busca `Path` y haz clic en **Editar**.
+4.  Añade `C:\maven\bin` a la lista.
+5.  Reinicia tu terminal y verifica con el comando `mvn -version`.
+
+### 3. Flujo de Trabajo (Workflow)
+La aplicación de Electron no ejecuta los archivos `.java` directamente; ejecuta un archivo `.jar` compilado. Por lo tanto, cada vez que hagas un cambio en el código Java, debes recompilar el motor para que Electron pueda "ver" las actualizaciones.
+
+**El ciclo de prueba:**
+1.  **Modifica** el código fuente en `java-engine/src/main/java`.
+2.  **Recompilar y Sincronizar**: Ejecuta el script de construcción desde la carpeta **raíz** del proyecto:
+    * **Windows**: `npm run build:engine`
+    * **Mac/Linux**: `npm run build:engine-mac`
+    * *Este script limpia el proyecto, empaqueta el nuevo JAR y lo mueve automáticamente a `dist-java-engine/engine.jar`.*
+3.  **Lanza la App**: Ejecuta `npm run dev:electron` para iniciar la interfaz de escritorio.
+4.  **Ejecuta**: Crea o carga un flujo en la UI y presiona el botón de ejecución para probar tu nueva lógica en Java.
+
+> **Nota Importante:** El motor utiliza Jackson para el procesamiento de JSON. Si añades nuevas dependencias al `pom.xml`, asegúrate de que estén configuradas en el "shaded JAR" para evitar errores de tipo `ClassNotFoundException` en tiempo de ejecución.
+
 # React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.

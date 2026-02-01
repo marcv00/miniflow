@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist-electron
+dist-java-engine
 dist
 dist-ssr
 *.local

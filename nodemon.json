@@ -1,0 +1,5 @@
+{
+  "watch": ["electron"],
+  "ext": "ts",
+  "exec": "npm run build:electron && electron ."
+}

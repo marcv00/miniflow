@@ -1,6 +1,7 @@
-import { contextBridge, ipcRenderer } from "electron"
+const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  saveJson: (content: string) => ipcRenderer.invoke("save-json", content),
-  openJson: () => ipcRenderer.invoke("open-json")
-})
+  saveJson: (content:any) => ipcRenderer.invoke("save-json", content),
+  openJson: () => ipcRenderer.invoke("open-json"),
+  runJavaTest: (name:any) => ipcRenderer.invoke("run-java-test", name),
+});
