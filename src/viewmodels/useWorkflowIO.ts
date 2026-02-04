@@ -1,5 +1,6 @@
 import { useRef } from "react";
 import { exportWorkflowJson, exportWorkflowJava } from "../models/workflow/WorkflowExporters";
+import { validate } from "../models/workflow/WorkflowValidator";
 import type { Workflow } from "../models/workflow/types";
 
 export function useWorkflowIO(persist: (wf: Workflow) => void) {
@@ -14,7 +15,15 @@ export function useWorkflowIO(persist: (wf: Workflow) => void) {
     try {
       const text = await file.text();
       const obj = JSON.parse(text);
-      if (obj.nodes && obj.edges) persist({ ...obj, id: obj.id || crypto.randomUUID() });
+      if (obj.nodes && obj.edges) {
+        const errs = validate(obj.nodes, obj.edges);
+        if (errs.length) {
+          const msg = ["No se puede importar: el workflow es inválido.", "", ...errs.slice(0, 6)].join("\n");
+          alert(msg);
+          return;
+        }
+        persist({ ...obj, id: obj.id || crypto.randomUUID() });
+      }
     } catch {
       alert("Error al importar JSON.");
     }

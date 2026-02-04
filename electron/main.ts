@@ -4,7 +4,6 @@ import fs from "fs"
 import { fileURLToPath } from "url"
 import { spawn } from "child_process";
 
-// Define __dirname for ES Modules
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
@@ -47,6 +46,30 @@ ipcMain.handle("open-json", async () => {
   return fs.readFileSync(filePaths[0], "utf-8")
 })
 
+ipcMain.handle("run-workflow", async (_event, workflowJson: string) => {
+  const jarPath = path.resolve(__dirname, "..", "dist-java-engine", "engine.jar")
+  if (!fs.existsSync(jarPath)) {
+    return { ok: false, exitCode: -1, stdout: "", stderr: "engine.jar no existe. Ejecuta: npm run build:engine" }
+  }
+
+  return await new Promise((resolve) => {
+    const child = spawn("java", ["-jar", jarPath])
+
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout.on("data", (d) => { stdout += d.toString() })
+    child.stderr.on("data", (d) => { stderr += d.toString() })
+
+    child.on("close", (code) => {
+      resolve({ ok: (code ?? 0) === 0, exitCode: code ?? 0, stdout, stderr })
+    })
+
+    child.stdin.write((workflowJson || "") + "\n")
+    child.stdin.end()
+  })
+})
+
 ipcMain.handle("run-java-test", async (_event, folderName: string) => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
     properties: ["openDirectory"],
@@ -58,7 +81,6 @@ ipcMain.handle("run-java-test", async (_event, folderName: string) => {
   const selectedPath = filePaths[0];
 
   return new Promise((resolve) => {
-    // 1. VERIFICA ESTA RUTA: Imprime en consola para ver dónde busca el JAR
     const jarPath = path.resolve(__dirname, "..", "dist-java-engine", "engine.jar");
     console.log("Buscando JAR en:", jarPath);
 
@@ -74,10 +96,10 @@ ipcMain.handle("run-java-test", async (_event, folderName: string) => {
       name: "Test con Selector",
       nodes: [
         { id: "node-1", type: "START", data: {} },
-        { 
-          id: "node-2", 
-          type: "CREATE_FOLDER", 
-          data: { folderName: folderName, folderPath: selectedPath } 
+        {
+          id: "node-2",
+          type: "CREATE_FOLDER",
+          data: { folderName: folderName, folderPath: selectedPath }
         }
       ],
       edges: [{ source: "node-1", target: "node-2" }]
@@ -89,7 +111,6 @@ ipcMain.handle("run-java-test", async (_event, folderName: string) => {
     child.stdin.write(jsonString + "\n");
     child.stdin.end();
 
-    // 2. CAPTURA DE SALIDA: Esto aparecerá en tu terminal de VS Code
     child.stdout.on("data", (data) => {
       console.log(`[Java Stdout]: ${data}`);
     });

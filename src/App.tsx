@@ -1,4 +1,4 @@
-import ReactFlow, { Background, Controls, MiniMap, MarkerType } from "reactflow";
+import ReactFlow, { Background, MarkerType } from "reactflow";
 import "reactflow/dist/style.css";
 
 import { nodeTypes } from "./views/components/nodes/nodeTypes";
@@ -21,9 +21,10 @@ export default function App() {
             <strong>{state.name}</strong>
             <div className={styles.small}>{state.description || "—"}</div>
           </div>
-          
+
           <div className={styles.actions}>
             <button className={styles.btn} onClick={handlers.validateNow}>Validar</button>
+            <button className={styles.btn} onClick={handlers.executeNow}>Ejecutar</button>
             <button className={styles.btn} onClick={handlers.saveCurrent}>Guardar</button>
             <button className={styles.btn} onClick={handlers.exportJson}>Export JSON</button>
             <button className={styles.btn} onClick={handlers.exportJava}>Export .java</button>
@@ -31,53 +32,28 @@ export default function App() {
             <button className={`${styles.btn} ${styles.danger}`} onClick={handlers.deleteCurrent}>
               Eliminar
             </button>
-            <button 
-              className={styles.btn} 
-              style={{ backgroundColor: "#27ae60", color: "white", marginLeft: "10px" }}
-              onClick={async () => {
-                console.log("Intentando ejecutar motor Java...");
-                try {
-                  // Usamos un nombre fijo para probar sin que el navegador se bloquee
-                  const testName = "Carpeta_Nueva_Prueba"; 
-                  
-                  // Verificamos si la API existe antes de llamar
-                  if (window.electronAPI && window.electronAPI.runJavaTest) {
-                    await window.electronAPI.runJavaTest(testName);
-                  } else {
-                    console.error("La API de Electron no está disponible. Revisa el preload.");
-                  }
-                } catch (err) {
-                  console.error("Error en el flujo:", err);
-                }
-              }}
-            >
-              📁 Crear Carpeta Pro
-            </button>
-            <input 
+            <input
               ref={refs.fileInputRef}
-              type="file" 
-              accept="application/json" 
-              style={{ display: "none" }} 
-              onChange={handlers.onImportFile} 
+              type="file"
+              accept="application/json"
+              style={{ display: "none" }}
+              onChange={handlers.onImportFile}
             />
           </div>
         </header>
 
         <main className={styles.canvasWrap}>
           <ReactFlow
-            nodes={state.nodes} 
-            edges={state.edges} 
+            nodes={state.nodes}
+            edges={state.edges}
             nodeTypes={nodeTypes}
-            onNodesChange={handlers.onNodesChange} 
+            onNodesChange={handlers.onNodesChange}
             onEdgesChange={handlers.onEdgesChange}
-            onConnect={handlers.onConnect} 
+            onConnect={handlers.onConnect}
             onNodeClick={handlers.onNodeClick}
             fitView
             defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-          >
-            <MiniMap pannable zoomable />
-            <Controls />
-            <Background variant="dots" gap={18} size={1} />
+          >            <Background variant="dots" gap={18} size={1} />
           </ReactFlow>
         </main>
 
@@ -91,12 +67,28 @@ export default function App() {
               <div key={i} className={styles.errItem}>{e}</div>
             ))
           )}
-        </footer>
+        
+          <div style={{ height: 8 }} />
+          {state.runStatus === "idle" ? (
+            <div className={styles.neutralItem}>Runner: listo</div>
+          ) : state.runStatus === "running" ? (
+            <div className={styles.neutralItem}>⏳ Ejecutando...</div>
+          ) : state.runStatus === "success" ? (
+            <div className={styles.okItem}>🏁 Ejecución terminada (exit {state.runExitCode ?? 0})</div>
+          ) : (
+            <div className={styles.errItem}>❌ Ejecución fallida (exit {state.runExitCode ?? "?"})</div>
+          )}
+
+          {(state.runStdout || state.runStderr) && (
+            <pre className={styles.runOutput}>{(state.runStdout ? "STDOUT:\n" + state.runStdout : "") + (state.runStderr ? "\nSTDERR:\n" + state.runStderr : "")}</pre>
+          )}
+
+      </footer>
       </div>
 
-      <NodeConfigPanel 
-        selectedNode={state.selectedNode} 
-        updateSelectedNode={handlers.updateSelectedNode} 
+      <NodeConfigPanel
+        selectedNode={state.selectedNode}
+        updateSelectedNode={handlers.updateSelectedNode}
       />
     </div>
   );

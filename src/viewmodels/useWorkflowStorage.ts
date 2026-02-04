@@ -3,7 +3,11 @@ import { loadAll, saveAll } from "../models/storage/LocalStorage";
 import type { Workflow } from "../models/workflow/types";
 
 export function useWorkflowStorage() {
-  const [workflows, setWorkflows] = useState<Workflow[]>(() => loadAll());
+  const [workflows, setWorkflows] = useState<Workflow[]>(() => {
+    const arr = loadAll().filter(w => (w?.name || "").toUpperCase() !== "WORKFLOW_2");
+    saveAll(arr);
+    return arr;
+  });
   const [currentId, setCurrentId] = useState<string | null>(() => workflows[0]?.id ?? null);
 
   const persist = (wf: Workflow) => {

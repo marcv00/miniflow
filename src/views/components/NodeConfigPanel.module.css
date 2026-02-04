@@ -61,3 +61,16 @@
 .field input:focus {
   border-color: rgba(120, 180, 255, 0.4);
 }
+.field select {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: #e6edf3;
+  padding: 10px 12px;
+  border-radius: 12px;
+  outline: none;
+  transition: border-color 0.2s ease;
+}
+
+.field select:focus {
+  border-color: rgba(120, 180, 255, 0.4);
+}
