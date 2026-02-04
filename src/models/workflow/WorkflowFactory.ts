@@ -1,10 +1,22 @@
-import type { Workflow, FlowNode, NodeType } from "./types"
+import type { Workflow, FlowNode, NodeType, ConfigByType } from "./types"
 
 export const uid = () => crypto.randomUUID()
 
-export const defaultConfigByType = {
+export const defaultConfigByType: ConfigByType = {
   start: {},
-  command: { command: "", args: "", outputKey: "" }
+  http_request: {
+    method: "GET",
+    url: "",
+    headersJson: "{}",
+    queryParamsJson: "{}",
+    bodyJson: "{}",
+    timeoutMs: 5000,
+    retries: 0,
+    contextKey: "http"
+  },
+  command: { command: "", args: "", outputKey: "" },
+  conditional: { leftPath: "context.http.status", op: "==", rightValue: "200" },
+  end: {}
 }
 
 export const emptyWorkflow = (): Workflow => ({
@@ -15,20 +27,34 @@ export const emptyWorkflow = (): Workflow => ({
   edges: []
 })
 
-export const makeNode = (
-  type: NodeType,
+const clone = <T,>(x: T): T => {
+  // Si tu runtime soporta structuredClone, es mejor:
+  // return structuredClone(x)
+  return JSON.parse(JSON.stringify(x)) as T
+}
+
+export const makeNode = <T extends NodeType>(
+  type: T,
   position: { x: number; y: number }
-): FlowNode => {
-  const node: FlowNode = {
+): FlowNode<T> => {
+  const labelByType: Record<NodeType, string> = {
+  start: "Inicio",
+  http_request: "Consultar API",
+  command: "Ejecutar comando",
+  conditional: "Evaluar condición",
+  end: "Fin"
+}
+
+  return {
     id: uid(),
     type,
     position,
     data: {
-      label: type === "start" ? "Inicio" : "Ejecutar comando",
-      config: JSON.parse(JSON.stringify(defaultConfigByType[type]))
+      type,
+      label: labelByType[type],
+      config: clone(defaultConfigByType[type])
     }
   }
-  return node
 }
 
 export const seedWorkflow2 = (): Workflow => {
@@ -42,18 +68,18 @@ export const seedWorkflow2 = (): Workflow => {
   const n4 = makeNode("command", { x: 920, y: 80 })
 
   n2.data.label = "Extraer datos"
-  n2.data.config!.command = "bash"
-  n2.data.config!.args = "extract.sh"
-  n2.data.config!.outputKey = "rawData"
+  n2.data.config.command = "bash"
+  n2.data.config.args = "extract.sh"
+  n2.data.config.outputKey = "rawData"
 
   n3.data.label = "Transformar datos"
-  n3.data.config!.command = "python"
-  n3.data.config!.args = "transform.py"
-  n3.data.config!.outputKey = "cleanedData"
+  n3.data.config.command = "python"
+  n3.data.config.args = "transform.py"
+  n3.data.config.outputKey = "cleanedData"
 
   n4.data.label = "Cargar resultados"
-  n4.data.config!.command = "python"
-  n4.data.config!.args = "load.py"
+  n4.data.config.command = "python"
+  n4.data.config.args = "load.py"
 
   w.nodes = [n1, n2, n3, n4]
   w.edges = [

@@ -1,15 +1,19 @@
 import { Handle, Position, type NodeProps } from "reactflow"
 import type { NodeData } from "../../../models/workflow/types"
-import styles from "./CommandNode.module.css"
+import styles from "./HttpRequestNode.module.css"
 
-export default function CommandNode({ data }: NodeProps<NodeData<"command">>) {
+export default function HttpRequestNode({ data }: NodeProps<NodeData<"http_request">>) {
+  const cfg = data.config
+
   return (
     <div className={styles.nodeBox}>
-      <div className={styles.nodeTitle}>COMMAND</div>
-      <div className={styles.nodeLabel}>{data.label || "Command"}</div>
+      <div className={styles.nodeTitle}>HTTP_REQUEST</div>
+      <div className={styles.nodeLabel}>{data.label || "Request"}</div>
+
       <div className={styles.nodeHint}>
-        {data.config.command} {data.config.args}
+        {cfg.method} {cfg.url || "(sin URL)"}
       </div>
+
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />
     </div>
