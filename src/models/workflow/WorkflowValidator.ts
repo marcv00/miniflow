@@ -1,4 +1,4 @@
-import type { FlowNode, FlowEdge } from "./types"
+import type { FlowNode, FlowEdge, CommandConfig, HttpRequestConfig, ConditionalConfig } from "./types"
 
 const buildAdj = (nodes: FlowNode[], edges: FlowEdge[]) => {
   const adj: Record<string, string[]> = {}
@@ -45,11 +45,7 @@ const detectCycle = (nodes: FlowNode[], edges: FlowEdge[]) => {
   return has
 }
 
-const reachableFrom = (
-  startId: string | null,
-  nodes: FlowNode[],
-  edges: FlowEdge[]
-) => {
+const reachableFrom = (startId: string | null, nodes: FlowNode[], edges: FlowEdge[]) => {
   const adj = buildAdj(nodes, edges)
   const vis: Record<string, boolean> = {}
   const q: string[] = []
@@ -76,18 +72,56 @@ const reachableFrom = (
   return vis
 }
 
+const isValidJson = (s: string) => {
+  const t = (s ?? "").trim()
+  if (!t) return true // vacío lo consideramos OK
+  try {
+    JSON.parse(t)
+    return true
+  } catch {
+    return false
+  }
+}
+
+const isValidHttpUrl = (url: string) => {
+  const u = (url ?? "").trim()
+  if (!u) return false
+  return /^https?:\/\/.+/i.test(u)
+}
+
+const edgeBranch = (e: FlowEdge): "TRUE" | "FALSE" | null => {
+  const sh = e.sourceHandle ?? undefined
+  if (sh === "TRUE" || sh === "FALSE") return sh
+
+  const lbl = e.label
+  if (typeof lbl === "string" && (lbl === "TRUE" || lbl === "FALSE")) return lbl
+
+  return null
+}
+
+
+
 export const validate = (nodes: FlowNode[], edges: FlowEdge[]) => {
   const errors: string[] = []
 
+  // START: exactamente 1
   const starts = nodes.filter(n => n.type === "start")
   if (starts.length !== 1) {
     errors.push("Debe existir exactamente 1 nodo START.")
   }
 
+  // END: al menos 1 (si quieres que sea obligatorio)
+  const ends = nodes.filter(n => n.type === "end")
+  if (ends.length < 1) {
+    errors.push("Debe existir al menos 1 nodo END.")
+  }
+
+  // Ciclos
   if (detectCycle(nodes, edges)) {
     errors.push("No se permite ciclos en el workflow.")
   }
 
+  // Alcanzables desde START
   const startId = starts[0]?.id ?? null
   const reach = reachableFrom(startId, nodes, edges)
 
@@ -96,14 +130,72 @@ export const validate = (nodes: FlowNode[], edges: FlowEdge[]) => {
     errors.push("Hay nodos no alcanzables desde START.")
   }
 
+  // Reglas por nodo
   nodes.forEach(n => {
-    if (n.type === "command") {
-      const cfg = n.data?.config
-      if (!cfg || !cfg.command.trim()) {
-        errors.push(`COMMAND sin comando (node ${n.id}).`)
-      }
+  // COMMAND
+  if (n.type === "command") {
+    const cfg = n.data.config as CommandConfig
+    if (!String(cfg.command ?? "").trim()) {
+      errors.push(`COMMAND sin comando (node ${n.id}).`)
     }
-  })
+  }
+
+  // HTTP_REQUEST
+  if (n.type === "http_request") {
+    const cfg = n.data.config as HttpRequestConfig
+
+    if (!isValidHttpUrl(cfg.url)) {
+      errors.push(`HTTP_REQUEST con URL inválida o vacía (node ${n.id}).`)
+    }
+
+    if (!Number.isFinite(cfg.timeoutMs) || cfg.timeoutMs <= 0) {
+      errors.push(`HTTP_REQUEST timeout inválido (node ${n.id}).`)
+    }
+
+    if (!Number.isFinite(cfg.retries) || cfg.retries < 0) {
+      errors.push(`HTTP_REQUEST retries inválido (node ${n.id}).`)
+    }
+
+    if (!isValidJson(cfg.headersJson)) {
+      errors.push(`HTTP_REQUEST Headers no es JSON válido (node ${n.id}).`)
+    }
+    if (!isValidJson(cfg.queryParamsJson)) {
+      errors.push(`HTTP_REQUEST Query Params no es JSON válido (node ${n.id}).`)
+    }
+    if (!isValidJson(cfg.bodyJson)) {
+      errors.push(`HTTP_REQUEST Body no es JSON válido (node ${n.id}).`)
+    }
+  }
+
+  // CONDITIONAL
+  if (n.type === "conditional") {
+    const cfg = n.data.config as ConditionalConfig
+
+    if (!String(cfg.leftPath ?? "").trim()) {
+      errors.push(`CONDITIONAL Left (path) vacío (node ${n.id}).`)
+    }
+    if (!String(cfg.rightValue ?? "").trim()) {
+      errors.push(`CONDITIONAL Right (valor) vacío (node ${n.id}).`)
+    }
+
+    const out = edges.filter(e => e.source === n.id)
+    const hasTrue = out.some(e => edgeBranch(e) === "TRUE")
+    const hasFalse = out.some(e => edgeBranch(e) === "FALSE")
+
+    if (!hasTrue || !hasFalse) {
+      errors.push(`CONDITIONAL debe tener 2 salidas: TRUE y FALSE (node ${n.id}).`)
+    }
+  }
+
+  // END no debe tener salidas
+  if (n.type === "end") {
+    const out = edges.filter(e => e.source === n.id)
+    if (out.length > 0) {
+      errors.push(`END no debe tener conexiones de salida (node ${n.id}).`)
+    }
+  }
+})
+
 
   return errors
 }

@@ -1,4 +1,4 @@
-import ReactFlow, { Background, Controls, MiniMap, MarkerType } from "reactflow";
+import ReactFlow, { Background, BackgroundVariant, Controls, MiniMap, MarkerType } from "reactflow"
 import "reactflow/dist/style.css";
 
 import { nodeTypes } from "./views/components/nodes/nodeTypes";
@@ -9,7 +9,7 @@ import { NodeConfigPanel } from "./views/components/NodeConfigPanel";
 import styles from "./App.module.css";
 
 export default function App() {
-  const { state, handlers, refs } = useWorkflowViewModel();
+  const { state, handlers, fileInputRef } = useWorkflowViewModel();
 
   return (
     <div className={styles.app}>
@@ -54,7 +54,7 @@ export default function App() {
               📁 Crear Carpeta Pro
             </button>
             <input 
-              ref={refs.fileInputRef}
+              ref={fileInputRef}
               type="file" 
               accept="application/json" 
               style={{ display: "none" }} 
@@ -77,7 +77,7 @@ export default function App() {
           >
             <MiniMap pannable zoomable />
             <Controls />
-            <Background variant="dots" gap={18} size={1} />
+            <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
           </ReactFlow>
         </main>
 
