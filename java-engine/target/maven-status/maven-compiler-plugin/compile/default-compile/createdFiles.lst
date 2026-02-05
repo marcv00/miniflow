@@ -1,9 +1,14 @@
+com\miniflow\strategies\HttpRequestStrategy.class
+com\miniflow\factory\ExecutorFactory.class
+com\miniflow\core\WorkflowRunner.class
+com\miniflow\context\ExecutionContext.class
+com\miniflow\strategies\CommandStrategy.class
 com\miniflow\strategies\NodeExecutor.class
 com\miniflow\model\Node.class
 com\miniflow\Main.class
-com\miniflow\factory\ExecutorFactory.class
-com\miniflow\core\WorkflowRunner.class
+com\miniflow\strategies\ConditionalStrategy.class
+com\miniflow\strategies\EndStrategy.class
+com\miniflow\strategies\StartStrategy.class
 com\miniflow\model\Connection.class
 com\miniflow\model\Workflow.class
 com\miniflow\strategies\CreateFolderStrategy.class
-com\miniflow\context\ExecutionContext.class

@@ -5,5 +5,10 @@ C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\Main.java
 C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\model\Connection.java
 C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\model\Node.java
 C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\model\Workflow.java
+C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\strategies\CommandStrategy.java
+C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\strategies\ConditionalStrategy.java
 C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\strategies\CreateFolderStrategy.java
+C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\strategies\EndStrategy.java
+C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\strategies\HttpRequestStrategy.java
 C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\strategies\NodeExecutor.java
+C:\Users\villa\Desktop\miniflow\java-engine\src\main\java\com\miniflow\strategies\StartStrategy.java

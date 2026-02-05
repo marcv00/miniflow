@@ -3,7 +3,6 @@ import styles from "./Sidebar.module.css";
 export function Sidebar({ state, handlers }: any) {
   return (
     <div className={styles.sidebar}>
-      <div className={styles.sectionTitle}>Workflows</div>
 
       <button className={styles.btn} onClick={handlers.createNewWorkflow}>
         + Nuevo workflow
@@ -13,6 +12,7 @@ export function Sidebar({ state, handlers }: any) {
         + Plantilla Workflow 1
       </button>
       <div className={styles.card}>
+        <div className={styles.sectionTitle}>Workflow Actual</div>
         <div className={styles.field}>
           <label>Nombre</label>
           <input value={state.name} onChange={(e) => handlers.setName(e.target.value)} />
@@ -24,7 +24,7 @@ export function Sidebar({ state, handlers }: any) {
         </div>
       </div>
 
-      <div className={styles.sectionTitle}>Nodos</div>
+      <div className={styles.sectionTitle}>Catalogo de Nodos</div>
 
       <div style={{ display: "grid", gap: "8px", marginBottom: "16px" }}>
         <button className={styles.btn} onClick={() => handlers.addNode("start")}>+ START</button>
@@ -34,7 +34,7 @@ export function Sidebar({ state, handlers }: any) {
         <button className={styles.btn} onClick={() => handlers.addNode("end")}>+ END</button>
       </div>
 
-      <div className={styles.sectionTitle}>Lista</div>
+      <div className={styles.sectionTitle}>Workflows</div>
 
       {state.workflows.map((w: any) => (
         <div

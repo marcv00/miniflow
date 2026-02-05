@@ -3,10 +3,15 @@ import com.miniflow.strategies.*;
 
 public class ExecutorFactory {
     public static NodeExecutor getExecutor(String type) {
-        return switch (type) {
-            case "START" -> (node, ctx) -> System.out.println("Workflow Started...");
-            case "CREATE_FOLDER" -> new CreateFolderStrategy(); // The one we tested
-            // case "HTTP_REQUEST" -> new HttpStrategy();
+        String t = type == null ? "" : type.toUpperCase();
+
+        return switch (t) {
+            case "START" -> new StartStrategy();
+            case "CREATE_FOLDER" -> new CreateFolderStrategy();
+            case "HTTP_REQUEST" -> new HttpRequestStrategy();
+            case "COMMAND" -> new CommandStrategy();
+            case "CONDITIONAL" -> new ConditionalStrategy();
+            case "END" -> new EndStrategy();
             default -> throw new IllegalArgumentException("Unknown type: " + type);
         };
     }
