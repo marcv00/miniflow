@@ -1,7 +1,13 @@
 import StartNode from "./StartNode"
 import CommandNode from "./CommandNode"
+import HttpRequestNode from "./HttpRequestNode"
+import ConditionalNode from "./ConditionalNode"
+import EndNode from "./EndNode"
 
 export const nodeTypes = {
   start: StartNode,
-  command: CommandNode
+  http_request: HttpRequestNode,
+  conditional: ConditionalNode,
+  command: CommandNode,
+  end: EndNode
 }

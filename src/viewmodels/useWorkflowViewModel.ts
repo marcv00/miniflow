@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { addEdge, useNodesState, useEdgesState, type Connection } from "reactflow";
-import { makeNode, emptyWorkflow } from "../models/workflow/WorkflowFactory";
+import { makeNode, emptyWorkflow, seedWorkflow1 } from "../models/workflow/WorkflowFactory";
 import { validate } from "../models/workflow/WorkflowValidator";
 import { useWorkflowStorage } from "./useWorkflowStorage";
-import { useWorkflowIO } from "./useWorkFlowIO";
-import type { FlowNode, Workflow } from "../models/workflow/types";
+import { useWorkflowIO } from "./useWorkflowIO";
+import type { FlowNode, Workflow, NodeType } from "../models/workflow/types";
 
 export function useWorkflowViewModel() {
   const { workflows, currentId, setCurrentId, persist, remove } = useWorkflowStorage();
@@ -17,6 +17,10 @@ export function useWorkflowViewModel() {
   const [description, setDescription] = useState(current?.description ?? "");
   const [errors, setErrors] = useState<string[]>([]);
   const [hasValidated, setHasValidated] = useState(false);
+  const [runStatus, setRunStatus] = useState<"idle" | "running" | "success" | "error">("idle");
+  const [runStdout, setRunStdout] = useState("");
+  const [runStderr, setRunStderr] = useState("");
+  const [runExitCode, setRunExitCode] = useState<number | null>(null);
 
   const { fileInputRef, exportJson, exportJava, onImportFile, openImport } = useWorkflowIO(persist);
 
@@ -29,11 +33,14 @@ export function useWorkflowViewModel() {
     setErrors([]);
     setHasValidated(false);
     setSelectedNodeId(null);
+    setRunStatus("idle");
+    setRunStdout("");
+    setRunStderr("");
+    setRunExitCode(null);
   }, [current, setNodes, setEdges]);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
 
-  // Definimos la lógica de guardado en una constante reutilizable
   const getCurrentWorkflowData = (): Workflow => ({
     id: currentId ?? crypto.randomUUID(),
     name: name.trim() || "WORKFLOW",
@@ -53,27 +60,76 @@ export function useWorkflowViewModel() {
       setErrors(validate(nodes as FlowNode[], edges));
       setHasValidated(true);
     },
-    addNode: (type: "start" | "command") => {
-      setNodes(nds => nds.concat(makeNode(type, { x: 250, y: 250 })));
+    executeNow: async () => {
+      const data = getCurrentWorkflowData();
+      persist(data);
+
+      const errs = validate(nodes as FlowNode[], edges);
+      setErrors(errs);
+      setHasValidated(true);
+
+      if (errs.length) {
+        const msg = ["No se puede ejecutar: el workflow es inválido.", "", ...errs.slice(0, 6)].join("\n");
+        alert(msg);
+        return;
+      }
+
+      setRunStatus("running");
+      setRunStdout("");
+      setRunStderr("");
+      setRunExitCode(null);
+
+      try {
+        const res = await window.electronAPI.runWorkflow(JSON.stringify(data));
+        setRunExitCode(res.exitCode ?? null);
+        setRunStdout(res.stdout || "");
+        setRunStderr(res.stderr || "");
+        setRunStatus(res.ok ? "success" : "error");
+      } catch (e: any) {
+        setRunStderr(String(e?.message || e || "Error"));
+        setRunStatus("error");
+      }
     },
-    onConnect: (params: Connection) => setEdges(eds => addEdge(params, eds)),
+    addNode: (type: NodeType) => {
+      const bump = (nodes?.length || 0) * 30;
+      setNodes(nds => nds.concat(makeNode(type, { x: 260 + bump, y: 220 + bump })));
+    },
+    onConnect: (params: Connection) =>
+      setEdges(eds => {
+        const label =
+          params.sourceHandle === "true"
+            ? "TRUE"
+            : params.sourceHandle === "false"
+              ? "FALSE"
+              : undefined;
+
+        const next: any = {
+          ...params,
+          id: crypto.randomUUID(),
+          type: "smoothstep",
+          label
+        };
+
+        return addEdge(next, eds);
+      }),
     updateSelectedNode: (patch: { label?: string; config?: any }) => {
       setNodes(nds => nds.map(n => {
         if (n.id !== selectedNodeId) return n;
-        return {
-          ...n,
-          data: {
-            ...n.data,
-            label: patch.label !== undefined ? patch.label : n.data.label,
-            config: patch.config !== undefined ? { ...n.data.config, ...patch.config } : n.data.config
-          }
-        };
+
+        const nextLabel = patch.label !== undefined ? patch.label : n.data.label;
+
+        const nextConfig =
+          patch.config !== undefined
+            ? { ...(n.data as any).config, ...patch.config }
+            : (n.data as any).config;
+
+        return { ...n, data: { ...n.data, label: nextLabel, config: nextConfig } };
       }));
     }
   };
 
   return {
-    state: { workflows, currentId, nodes, edges, name, description, errors, hasValidated, selectedNode },
+    state: { workflows, currentId, nodes, edges, name, description, errors, hasValidated, selectedNode, runStatus, runStdout, runStderr, runExitCode },
     refs: { fileInputRef },
     handlers: { 
         ...actions, 
@@ -84,16 +140,14 @@ export function useWorkflowViewModel() {
         onEdgesChange, 
         onNodeClick: (_: any, node: any) => setSelectedNodeId(node.id),
         createNewWorkflow: () => persist(emptyWorkflow()),
-        
-        
-        exportJson: () => {
+        createWorkflow1: () => persist(seedWorkflow1()),        exportJson: () => {
           const data = getCurrentWorkflowData();
-          persist(data); // Auto-guardar antes de exportar
+          persist(data);
           exportJson(data);
         },
         exportJava: () => {
           const data = getCurrentWorkflowData();
-          persist(data); // Auto-guardar antes de exportar
+          persist(data);
           exportJava(data);
         },
         onImportFile, 
