@@ -1,0 +1,29 @@
+.nodeBox {
+  padding: 12px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  min-width: 220px;
+}
+
+.nodeTitle {
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.6px;
+  opacity: 0.95;
+  color: #78b4ff; /* Un toque de color azul para diferenciar el inicio */
+}
+
+.nodeLabel {
+  margin-top: 6px;
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.nodeHint {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.72;
+  font-style: italic;
+}

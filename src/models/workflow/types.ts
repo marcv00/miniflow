@@ -1,6 +1,8 @@
 import type { Node, Edge } from "reactflow"
 
-export type NodeType = "start" | "command"
+export type NodeType = "start" | "http_request" | "conditional" | "command" | "end"
+
+export type ErrorPolicy = "STOP_ON_FAIL" | "CONTINUE_ON_FAIL"
 
 export interface CommandConfig {
   command: string
@@ -8,9 +10,31 @@ export interface CommandConfig {
   outputKey?: string
 }
 
+export interface HttpRequestConfig {
+  method: string
+  url: string
+  timeoutMs: number
+  retries: number
+  errorPolicy: ErrorPolicy
+  map?: {
+    status?: string
+    payload?: string
+  }
+}
+
+export interface ConditionalConfig {
+  condition: string
+}
+
+export type NodeConfig =
+  | CommandConfig
+  | HttpRequestConfig
+  | ConditionalConfig
+  | Record<string, never>
+
 export interface NodeData {
   label: string
-  config?: CommandConfig
+  config?: NodeConfig
 }
 
 export type FlowNode = Node<NodeData, NodeType>
