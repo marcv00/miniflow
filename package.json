@@ -10,7 +10,8 @@
     "electron": "electron .",
     "build": "tsc -b && vite build",
     "build:electron": "tsc -p tsconfig.electron.json",
-    "build:engine": "cd java-engine && mvn clean package && cd .. && if not exist dist-java-engine mkdir dist-java-engine && copy /y java-engine\\target\\java-engine-1.0-SNAPSHOT.jar dist-java-engine\\engine.jar",
+    "build:engine": "powershell -Command \"Remove-Item dist-java-engine -Recurse -Force -ErrorAction SilentlyContinue; cd java-engine; mvn clean package; cd ..; New-Item -ItemType Directory dist-java-engine | Out-Null; Copy-Item java-engine\\target\\java-engine-1.0-SNAPSHOT.jar dist-java-engine\\engine.jar -Force\"",
+
     "build:engine-mac": "cd java-engine && mvn clean package && cd .. && mkdir -p dist-java-engine && cp java-engine/target/java-engine-1.0-SNAPSHOT.jar dist-java-engine/engine.jar",
     "lint": "eslint .",
     "preview": "vite preview"

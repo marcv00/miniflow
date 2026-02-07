@@ -6,6 +6,7 @@ export type ErrorPolicy = "STOP_ON_FAIL" | "CONTINUE_ON_FAIL"
 
 export interface CommandConfig {
   command: string
+  scriptPath?: string
   args: string
   outputKey?: string
 }

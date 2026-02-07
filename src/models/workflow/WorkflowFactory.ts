@@ -1,23 +1,22 @@
-import type { Workflow, FlowNode, NodeType } from "./types"
+import type { Workflow, FlowNode, NodeType, HttpRequestConfig, CommandConfig, ConditionalConfig } from "./types"
 
 export const uid = () => crypto.randomUUID()
 
-export const defaultConfigByType: Record<NodeType, any> = {
+export const defaultConfigByType: Record<NodeType, Record<string, unknown>> = {
   start: {},
   end: {},
   http_request: {
     method: "GET",
-    url: "https://httpbin.org/status/200",
+    url: "https://api.example.com/data",
     timeoutMs: 5000,
     retries: 3,
     errorPolicy: "STOP_ON_FAIL",
-    fallbackUrls: ["https://jsonplaceholder.typicode.com/todos/1"],
-    map: { status: "$.status", payload: "$.body" }
+    map: { status: "$.status", payload: "$.data" }
   },
   conditional: {
     condition: "context.status == 200"
   },
-  command: { command: "", args: "", outputKey: "" }
+  command: { command: "", scriptPath: "", args: "", outputKey: "" }
 }
 
 export const emptyWorkflow = (): Workflow => ({
@@ -52,13 +51,14 @@ export const makeNode = (
       config: JSON.parse(JSON.stringify(defaultConfigByType[type]))
     }
   }
+
   return node
 }
 
 export const seedWorkflow1 = (): Workflow => {
   const w = emptyWorkflow()
   w.name = "WORKFLOW_1"
-  w.description = "Consultar API, decidir por status==200 y ejecutar comandos según resultado."
+  w.description = "Consultar API externa, evaluar status==200 y ejecutar comandos según la condición."
 
   const start = makeNode("start", { x: 80, y: 220 })
   const http = makeNode("http_request", { x: 360, y: 220 })
@@ -70,22 +70,32 @@ export const seedWorkflow1 = (): Workflow => {
   http.data.label = "Consultar API"
   http.data.config = {
     method: "GET",
-    url: "https://httpbin.org/status/200",
+    url: "https://api.example.com/data",
     timeoutMs: 5000,
     retries: 3,
     errorPolicy: "STOP_ON_FAIL",
-    fallbackUrls: ["https://jsonplaceholder.typicode.com/todos/1"],
-    map: { status: "$.status", payload: "$.body" }
-  }
+    map: { status: "$.status", payload: "$.data" }
+  } as HttpRequestConfig
 
   cond.data.label = "Evaluar respuesta"
-  cond.data.config = { condition: "context.status == 200" }
+  cond.data.config = {
+    condition: "context.status == 200"
+  } as ConditionalConfig
 
   ok.data.label = "Procesar datos"
-  ok.data.config = { command: "echo", args: "\"Procesar datos OK\"", outputKey: "" }
+  ok.data.config = {
+    command: "python",
+    scriptPath: "",
+    args: "\"{{context.payload}}\"",
+    outputKey: ""
+  } as CommandConfig
 
   fail.data.label = "Registrar error"
-  fail.data.config = { command: "echo", args: "\"Error al consumir API\"", outputKey: "" }
+  fail.data.config = {
+    command: "echo",
+    args: '"Error al consumir API"',
+    outputKey: ""
+  } as CommandConfig
 
   w.nodes = [start, http, cond, ok, fail, end]
   w.edges = [
@@ -99,4 +109,3 @@ export const seedWorkflow1 = (): Workflow => {
 
   return w
 }
-

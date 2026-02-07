@@ -26,12 +26,12 @@ export default function App() {
             <button className={styles.btn} onClick={handlers.validateNow}>Validar</button>
             <button className={styles.btn} onClick={handlers.executeNow}>Ejecutar</button>
             <button className={styles.btn} onClick={handlers.saveCurrent}>Guardar</button>
-            <button className={`${styles.btn} ${styles.danger}`} onClick={handlers.deleteCurrent}>
-              Eliminar Workflow
-            </button>
-            {/* <button className={styles.btn} onClick={handlers.exportJava}>Export .java</button> */}
             <button className={styles.btn} onClick={handlers.exportJson}>Export JSON</button>
+            <button className={styles.btn} onClick={handlers.exportJava}>Export .java</button>
             <button className={styles.btn} onClick={handlers.openImport}>Import JSON</button>
+            <button className={`${styles.btn} ${styles.danger}`} onClick={handlers.deleteCurrent}>
+              Eliminar
+            </button>
             <input
               ref={refs.fileInputRef}
               type="file"

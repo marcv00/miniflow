@@ -14,6 +14,15 @@ public class ExecutionContext {
         return instance;
     }
 
-    public void setVariable(String key, Object value) { variables.put(key, value); }
-    public Object getVariable(String key) { return variables.get(key); }
+    public void setVariable(String key, Object value) {
+        variables.put(key, value);
+    }
+
+    public Object getVariable(String key) {
+        return variables.get(key);
+    }
+
+    public void clear() {
+        variables.clear();
+    }
 }

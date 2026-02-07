@@ -1,10 +1,10 @@
 {
-  "id": "c7953194-8829-445b-a14f-7aaa4948cbfa",
+  "id": "8d4518f7-8b60-4fa8-a016-019675f54831",
   "name": "WORKFLOW_1",
-  "description": "Consultar API, decidir por status==200 y ejecutar comandos según resultado.",
+  "description": "Consultar API externa, evaluar status==200 y ejecutar comandos según la condición.",
   "nodes": [
     {
-      "id": "e6034c6e-bb80-4292-8aab-8a0bab86d266",
+      "id": "start-1",
       "type": "start",
       "position": {
         "x": 80,
@@ -18,7 +18,7 @@
       "height": 89
     },
     {
-      "id": "62754238-5dad-4972-b88a-61b24c743e72",
+      "id": "http-1",
       "type": "http_request",
       "position": {
         "x": 360,
@@ -28,24 +28,21 @@
         "label": "Consultar API",
         "config": {
           "method": "GET",
-          "url": "https://httpbin.org/status/200",
+          "url": "https://api.example.com/data",
           "timeoutMs": 5000,
           "retries": 3,
           "errorPolicy": "STOP_ON_FAIL",
           "map": {
             "status": "$.status",
-            "payload": "$.body"
-          },
-          "fallbackUrls": [
-            "https://jsonplaceholder.typicode.com/todos/1"
-          ]
+            "payload": "$.data"
+          }
         }
       },
       "width": 260,
       "height": 89
     },
     {
-      "id": "53700dd4-e175-4f39-aedd-073f3ac57392",
+      "id": "conditional-1",
       "type": "conditional",
       "position": {
         "x": 650,
@@ -61,7 +58,7 @@
       "height": 89
     },
     {
-      "id": "c7491b1b-9be9-4836-8707-f32a8ec41372",
+      "id": "command-true-1",
       "type": "command",
       "position": {
         "x": 960,
@@ -70,8 +67,9 @@
       "data": {
         "label": "Procesar datos",
         "config": {
-          "command": "echo",
-          "args": "\"Procesar datos OK\"",
+          "command": "python",
+          "scriptPath": "",
+          "args": "\"{{context.payload}}\"",
           "outputKey": ""
         }
       },
@@ -79,7 +77,7 @@
       "height": 89
     },
     {
-      "id": "6cf30f47-c9f1-40b4-b10d-7a6155f68cbb",
+      "id": "command-false-1",
       "type": "command",
       "position": {
         "x": 960,
@@ -97,7 +95,7 @@
       "height": 89
     },
     {
-      "id": "b537d3ef-aa1c-49ee-a76b-ceab2c066baa",
+      "id": "end-1",
       "type": "end",
       "position": {
         "x": 1250,
@@ -113,43 +111,43 @@
   ],
   "edges": [
     {
-      "id": "143e6da9-d95b-4f03-b0fe-0ff8024245bb",
-      "source": "e6034c6e-bb80-4292-8aab-8a0bab86d266",
-      "target": "62754238-5dad-4972-b88a-61b24c743e72",
+      "id": "edge-1",
+      "source": "start-1",
+      "target": "http-1",
       "type": "smoothstep"
     },
     {
-      "id": "b17f31ea-efce-4aef-aa2a-8898359908fc",
-      "source": "62754238-5dad-4972-b88a-61b24c743e72",
-      "target": "53700dd4-e175-4f39-aedd-073f3ac57392",
+      "id": "edge-2",
+      "source": "http-1",
+      "target": "conditional-1",
       "type": "smoothstep"
     },
     {
-      "id": "bbb4e514-83c7-41bd-951c-80eac3996967",
-      "source": "53700dd4-e175-4f39-aedd-073f3ac57392",
+      "id": "edge-3",
+      "source": "conditional-1",
       "sourceHandle": "true",
-      "target": "c7491b1b-9be9-4836-8707-f32a8ec41372",
+      "target": "command-true-1",
       "label": "TRUE",
       "type": "smoothstep"
     },
     {
-      "id": "f339c7d3-a958-46a5-9d8c-6fea9777ee15",
-      "source": "53700dd4-e175-4f39-aedd-073f3ac57392",
+      "id": "edge-4",
+      "source": "conditional-1",
       "sourceHandle": "false",
-      "target": "6cf30f47-c9f1-40b4-b10d-7a6155f68cbb",
+      "target": "command-false-1",
       "label": "FALSE",
       "type": "smoothstep"
     },
     {
-      "id": "5630a8f2-8d1a-4efc-b023-53277969d7f1",
-      "source": "c7491b1b-9be9-4836-8707-f32a8ec41372",
-      "target": "b537d3ef-aa1c-49ee-a76b-ceab2c066baa",
+      "id": "edge-5",
+      "source": "command-true-1",
+      "target": "end-1",
       "type": "smoothstep"
     },
     {
-      "id": "f1fabc3e-df4c-4635-a5ff-4b79ce9b6118",
-      "source": "6cf30f47-c9f1-40b4-b10d-7a6155f68cbb",
-      "target": "b537d3ef-aa1c-49ee-a76b-ceab2c066baa",
+      "id": "edge-6",
+      "source": "command-false-1",
+      "target": "end-1",
       "type": "smoothstep"
     }
   ]

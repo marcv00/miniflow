@@ -164,6 +164,19 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               </div>
 
               <div className={styles.field}>
+                <label>{String(selectedNode.data?.config?.command || "").trim().toLowerCase().startsWith("python") ? "Ruta script local (obligatoria para python)" : "Ruta script local (opcional)"}</label>
+                <input
+                  placeholder="C:\\Users\\Harry\\Desktop\\process.py"
+                  value={selectedNode.data?.config?.scriptPath || ""}
+                  onChange={(e) =>
+                    updateSelectedNode({
+                      config: { ...selectedNode.data.config, scriptPath: e.target.value },
+                    })
+                  }
+                />
+              </div>
+
+              <div className={styles.field}>
                 <label>Argumentos</label>
                 <input
                   value={selectedNode.data?.config?.args || ""}

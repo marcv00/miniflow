@@ -153,6 +153,14 @@ export const validate = (nodes: FlowNode[], edges: FlowEdge[]) => {
       if (!Number.isFinite(timeout) || timeout <= 0) errors.push(`HTTP_REQUEST timeout inválido (node ${n.id}).`)
       const retries = Number(cfg.retries)
       if (!Number.isFinite(retries) || retries < 0) errors.push(`HTTP_REQUEST retries inválido (node ${n.id}).`)
+      if (!String(cfg.errorPolicy || "").trim()) errors.push(`HTTP_REQUEST sin política de error (node ${n.id}).`)
+      const map = cfg.outputMapping || cfg.map
+      if (!map || typeof map !== "object") {
+        errors.push(`HTTP_REQUEST sin mapeo de salida (node ${n.id}).`)
+      } else {
+        if (!String(map.status || "").trim()) errors.push(`HTTP_REQUEST sin mapeo "status" (node ${n.id}).`)
+        if (!String(map.payload || "").trim()) errors.push(`HTTP_REQUEST sin mapeo "payload" (node ${n.id}).`)
+      }
     }
 
     if (n.type === "conditional") {
@@ -167,8 +175,15 @@ export const validate = (nodes: FlowNode[], edges: FlowEdge[]) => {
     }
 
     if (n.type === "command") {
-      if (!String(cfg.command || "").trim()) {
+      const cmd = String(cfg.command || "").trim()
+      if (!cmd) {
         errors.push(`COMMAND sin comando (node ${n.id}).`)
+      }
+
+      const low = cmd.toLowerCase()
+      const isPython = low === "python" || low.startsWith("python ") || low === "python3" || low.startsWith("python3 ")
+      if (isPython && !String(cfg.scriptPath || "").trim()) {
+        errors.push(`COMMAND python requiere "Ruta script local" (node ${n.id}).`)
       }
     }
   })

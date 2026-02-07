@@ -13,9 +13,9 @@ public class WorkflowRunner {
 
     public void run(Workflow workflow) {
         ExecutionContext context = ExecutionContext.getInstance();
+        context.clear();
 
         long workflowStart = System.currentTimeMillis();
-
         boolean hasErrors = false;
 
         String workflowName = (workflow != null && workflow.name != null && !workflow.name.isBlank())
@@ -32,6 +32,7 @@ public class WorkflowRunner {
 
         while (currentNode != null) {
             String error = null;
+            boolean stopOnFail = false;
 
             try {
                 ExecutorFactory.getExecutor(currentNode.type).execute(currentNode, context);
@@ -47,11 +48,26 @@ public class WorkflowRunner {
                     Object status = context.getVariable("status");
                     if (status == null) context.setVariable("status", 0);
                 }
+
+                String policy = getErrorPolicy(currentNode);
+                stopOnFail = policy.equalsIgnoreCase("STOP_ON_FAIL") || policy.equalsIgnoreCase("STOP");
+            }
+
+            if (error == null && currentNode.type != null && currentNode.type.equalsIgnoreCase("HTTP_REQUEST")) {
+                int statusCode = resolveHttpStatus(context);
+                String policy = getErrorPolicy(currentNode);
+                if (statusCode >= 400 && (policy.equalsIgnoreCase("STOP_ON_FAIL") || policy.equalsIgnoreCase("STOP"))) {
+                    hasErrors = true;
+                    error = "HTTP " + statusCode + " en nodo HTTP_REQUEST (STOP_ON_FAIL)";
+                    context.setVariable("__lastError", error);
+                    stopOnFail = true;
+                }
             }
 
             String response = buildResponse(currentNode, context, error);
             printNodeBlock(currentNode, response);
 
+            if (error != null && stopOnFail) break;
             if (currentNode.type != null && currentNode.type.equalsIgnoreCase("END")) break;
 
             currentNode = resolveNextNode(workflow, currentNode, context);
@@ -61,7 +77,17 @@ public class WorkflowRunner {
 
         long workflowEnd = System.currentTimeMillis();
         System.out.println("=============");
-        System.out.println("Ejecución completada en " + (workflowEnd - workflowStart) + " ms");
+        System.out.println("Ejecucion completada en " + (workflowEnd - workflowStart) + " ms");
+    }
+
+    private String getErrorPolicy(Node node) {
+        Map<String, Object> cfg = safeConfig(node);
+        Object p = cfg.get("errorPolicy");
+        if (p == null) p = cfg.get("onError");
+        if (p == null) return "STOP_ON_FAIL";
+        String s = String.valueOf(p);
+        if (s.isBlank()) return "STOP_ON_FAIL";
+        return s;
     }
 
     private void printNodeBlock(Node node, String response) {
@@ -92,7 +118,7 @@ public class WorkflowRunner {
             Object b = context.getVariable("__branch");
             String branch = b == null ? "" : String.valueOf(b);
             if (cond.isBlank()) return "Resultado = " + branch;
-            return "Condición: " + cond + " -> " + branch;
+            return "Condicion: " + cond + " -> " + branch;
         }
 
         if (t.equals("COMMAND")) {
@@ -134,6 +160,20 @@ public class WorkflowRunner {
         return Map.of();
     }
 
+    private int resolveHttpStatus(ExecutionContext context) {
+        Object status = context.getVariable("httpStatus");
+        if (status == null) status = context.getVariable("status");
+        if (status == null) return 0;
+
+        if (status instanceof Number n) return n.intValue();
+
+        try {
+            return Integer.parseInt(String.valueOf(status).trim());
+        } catch (Exception ignored) {
+            return 0;
+        }
+    }
+
     private Node resolveNextNode(Workflow workflow, Node currentNode, ExecutionContext context) {
         String currentId = currentNode.id;
         String branch = null;
@@ -164,6 +204,7 @@ public class WorkflowRunner {
             String nextId = edge.get().target;
             return workflow.nodes.stream().filter(n -> n.id.equals(nextId)).findFirst().orElse(null);
         }
+
         return null;
     }
 }
