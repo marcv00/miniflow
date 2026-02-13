@@ -9,11 +9,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class HttpRequestStrategy implements NodeExecutor {
+
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
@@ -22,199 +21,107 @@ public class HttpRequestStrategy implements NodeExecutor {
 
         String method = asString(config.getOrDefault("method", "GET"));
         String url = asString(config.get("url"));
-        Object fallbackObj = config.get("fallbackUrls");
         Integer timeoutMs = asInt(config.getOrDefault("timeoutMs", 5000));
-        Integer retries = asInt(config.getOrDefault("retries", 0));
         Object headersObj = config.get("headers");
         Object bodyObj = config.get("body");
         Object mappingObj = config.get("outputMapping");
-        if (mappingObj == null) mappingObj = config.get("map");
+        if (mappingObj == null)
+            mappingObj = config.get("map");
 
-        if (url == null || url.isBlank()) throw new Exception("Missing url in node config");
+        if (url == null || url.isBlank())
+            throw new Exception("Missing URL in HTTP node");
 
-        List<String> urls = new ArrayList<>();
-        urls.add(url);
-        if (fallbackObj instanceof List<?> list) {
-            for (Object u : list) {
-                if (u == null) continue;
-                String s = String.valueOf(u);
-                if (!s.isBlank()) urls.add(s);
-            }
-        }
+        HttpClient client = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofMillis(timeoutMs))
+                .build();
 
-        HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMillis(timeoutMs)).build();
+        try {
+            HttpRequest.Builder builder = HttpRequest.newBuilder()
+                    .uri(URI.create(url))
+                    .timeout(Duration.ofMillis(timeoutMs));
 
-        Exception last = null;
-
-        for (String currentUrl : urls) {
-            int attempts = 0;
-            while (attempts <= retries) {
-                attempts++;
-                try {
-                    HttpRequest.Builder b = HttpRequest.newBuilder()
-                        .uri(URI.create(currentUrl))
-                        .timeout(Duration.ofMillis(timeoutMs));
-
-                    if (headersObj instanceof Map<?, ?> hm) {
-                        for (Map.Entry<?, ?> e : hm.entrySet()) {
-                            if (e.getKey() != null && e.getValue() != null) {
-                                b.header(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
-                            }
-                        }
-                    }
-
-                    if ("POST".equalsIgnoreCase(method) || "PUT".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method)) {
-                        String body = bodyObj == null ? "" : String.valueOf(bodyObj);
-                        b.method(method.toUpperCase(), HttpRequest.BodyPublishers.ofString(body));
-                    } else {
-                        b.method(method.toUpperCase(), HttpRequest.BodyPublishers.noBody());
-                    }
-
-                    HttpResponse<String> resp = client.send(b.build(), HttpResponse.BodyHandlers.ofString());
-                    int httpStatus = resp.statusCode();
-                    String body = resp.body();
-
-                    context.setVariable("httpStatus", httpStatus);
-                    context.setVariable("status", httpStatus);
-                    context.setVariable("httpBody", body);
-
-                    if (mappingObj instanceof Map<?, ?> mm) {
-                        for (Map.Entry<?, ?> e : mm.entrySet()) {
-                            if (e.getKey() == null || e.getValue() == null) continue;
-                            String key = String.valueOf(e.getKey());
-                            String path = String.valueOf(e.getValue());
-                            Object value = resolveMapping(path, httpStatus, body);
-                            context.setVariable(key, value);
-                        }
-                    }
-
-                    if (isHttpError(httpStatus) && isStopOnFail(config)) {
-                        throw new Exception("HTTP " + httpStatus + " en " + currentUrl);
-                    }
-
-                    return;
-                } catch (Exception ex) {
-                    last = ex;
+            if (headersObj instanceof Map<?, ?> headers) {
+                for (Map.Entry<?, ?> e : headers.entrySet()) {
+                    builder.header(String.valueOf(e.getKey()), String.valueOf(e.getValue()));
                 }
             }
-        }
 
-        throw last == null ? new Exception("HTTP request failed") : last;
+            if ("POST".equalsIgnoreCase(method)
+                    || "PUT".equalsIgnoreCase(method)
+                    || "PATCH".equalsIgnoreCase(method)) {
+                String body = bodyObj == null ? "" : String.valueOf(bodyObj);
+                builder.method(method.toUpperCase(),
+                        HttpRequest.BodyPublishers.ofString(body));
+            } else {
+                builder.method(method.toUpperCase(),
+                        HttpRequest.BodyPublishers.noBody());
+            }
+
+            HttpResponse<String> response = client.send(builder.build(), HttpResponse.BodyHandlers.ofString());
+
+            int status = response.statusCode();
+            String body = response.body();
+
+            context.setVariable("httpStatus", status);
+            context.setVariable("status", status);
+            context.setVariable("httpBody", body);
+
+            // ERROR CONDITIONS
+            if (status >= 400)
+                throw new Exception("HTTP_ERROR: " + status);
+
+            if (body == null || body.trim().isEmpty())
+                throw new Exception("EMPTY_BODY");
+
+            // Optional mapping
+            if (mappingObj instanceof Map<?, ?> map) {
+                for (Map.Entry<?, ?> e : map.entrySet()) {
+                    String key = String.valueOf(e.getKey());
+                    String path = String.valueOf(e.getValue());
+                    Object value = resolveMapping(path, status, body);
+                    context.setVariable(key, value);
+                }
+            }
+
+        } catch (Exception ex) {
+            throw new Exception("NETWORK_ERROR: " + ex.getMessage(), ex);
+        }
     }
 
-    private Object resolveMapping(String path, int httpStatus, String body) {
-        if (path == null || path.isBlank()) return null;
-        if ("$.body".equals(path)) return body;
+    private Object resolveMapping(String path, int status, String body) {
+        if ("$.body".equals(path))
+            return body;
+        if ("$.status".equals(path))
+            return status;
 
-        Object parsed = tryParseJson(body);
-
-        if ("$.status".equals(path)) {
-            Object statusFromBody = extractFromParsed(parsed, "status");
-            if (statusFromBody != null) return normalizeValue(statusFromBody);
-            return httpStatus;
-        }
-
-        if ("$.data".equals(path)) {
-            Object v = extractFromParsed(parsed, "data");
-            if (v == null) v = extractFromParsed(parsed, "payload");
-            return normalizeValue(v);
-        }
-
-        if ("$.payload".equals(path)) {
-            Object v = extractFromParsed(parsed, "payload");
-            if (v == null) v = extractFromParsed(parsed, "data");
-            return normalizeValue(v);
-        }
-
-        if (path.startsWith("$.") && parsed != null) {
-            Object v = extractFromParsed(parsed, path.substring(2));
-            return normalizeValue(v);
+        try {
+            Object parsed = mapper.readValue(body, Object.class);
+            if (parsed instanceof Map<?, ?> map) {
+                return map.get(path.replace("$.", ""));
+            }
+        } catch (Exception ignored) {
         }
 
         return null;
     }
 
-    private Object tryParseJson(String body) {
-        try {
-            if (body == null || body.isBlank()) return null;
-            return mapper.readValue(body, Object.class);
-        } catch (Exception ignored) {
-            return null;
-        }
-    }
-
-    private Object extractFromParsed(Object parsed, String dottedPath) {
-        if (parsed == null || dottedPath == null || dottedPath.isBlank()) return null;
-
-        String[] parts = dottedPath.split("\\.");
-        Object cur = parsed;
-
-        for (String p : parts) {
-            if (cur instanceof Map<?, ?> m) {
-                cur = m.get(p);
-            } else {
-                return null;
-            }
-        }
-
-        return cur;
-    }
-
-    private Object normalizeValue(Object value) {
-        if (value == null) return null;
-
-        if (value instanceof String s) {
-            String t = s.trim();
-            if (t.matches("^-?\\d+$")) {
-                try {
-                    return Integer.parseInt(t);
-                } catch (Exception ignored) {
-                }
-            }
-            if (t.matches("^-?\\d+\\.\\d+$")) {
-                try {
-                    return Double.parseDouble(t);
-                } catch (Exception ignored) {
-                }
-            }
-            return s;
-        }
-
-        return value;
-    }
-
-
-    private boolean isHttpError(int status) {
-        return status >= 400;
-    }
-
-    private boolean isStopOnFail(Map<String, Object> config) {
-        if (config == null) return true;
-
-        Object policy = config.get("errorPolicy");
-        if (policy == null) policy = config.get("onError");
-        if (policy == null) return true;
-
-        String p = String.valueOf(policy).trim();
-        if (p.isBlank()) return true;
-        return p.equalsIgnoreCase("STOP_ON_FAIL") || p.equalsIgnoreCase("STOP");
-    }
-
+    @SuppressWarnings("unchecked")
     private Map<String, Object> extractConfig(Node node) {
-        if (node.data == null) return Map.of();
-        Object nested = node.data.get("config");
-        if (nested instanceof Map<?, ?> m) return (Map<String, Object>) m;
-        return node.data;
+        if (node.data == null)
+            return Map.of();
+        Object cfg = node.data.get("config");
+        if (cfg instanceof Map<?, ?> m)
+            return (Map<String, Object>) m;
+        return Map.of();
     }
 
     private String asString(Object v) {
-        if (v == null) return null;
-        return String.valueOf(v);
+        return v == null ? null : String.valueOf(v);
     }
 
     private Integer asInt(Object v) {
-        if (v == null) return null;
-        if (v instanceof Number n) return n.intValue();
+        if (v instanceof Number n)
+            return n.intValue();
         try {
             return Integer.parseInt(String.valueOf(v));
         } catch (Exception e) {
