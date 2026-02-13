@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { addEdge, useNodesState, useEdgesState, type Connection } from "reactflow";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { addEdge, useNodesState, useEdgesState, MarkerType, type Connection } from "reactflow";
 import { makeNode, emptyWorkflow, seedWorkflow1 } from "../models/workflow/WorkflowFactory";
 import { validate } from "../models/workflow/WorkflowValidator";
 import { useWorkflowStorage } from "./useWorkflowStorage";
@@ -9,7 +9,6 @@ import type { FlowNode, Workflow, NodeType } from "../models/workflow/types";
 export function useWorkflowViewModel(initialId?: string) {
   const { workflows, currentId, setCurrentId, persist, remove } = useWorkflowStorage();
 
-  // Sync the URL :id param to the storage's currentId
   useEffect(() => {
     if (initialId && initialId !== currentId) {
       setCurrentId(initialId);
@@ -21,6 +20,7 @@ export function useWorkflowViewModel(initialId?: string) {
   const [nodes, setNodes, onNodesChange] = useNodesState(current?.nodes ?? []);
   const [edges, setEdges, onEdgesChange] = useEdgesState(current?.edges ?? []);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [name, setName] = useState(current?.name ?? "WORKFLOW");
   const [description, setDescription] = useState(current?.description ?? "");
   const [errors, setErrors] = useState<string[]>([]);
@@ -41,6 +41,7 @@ export function useWorkflowViewModel(initialId?: string) {
     setErrors([]);
     setHasValidated(false);
     setSelectedNodeId(null);
+    setEditingNodeId(null);
     setRunStatus("idle");
     setRunStdout("");
     setRunStderr("");
@@ -48,6 +49,7 @@ export function useWorkflowViewModel(initialId?: string) {
   }, [current, setNodes, setEdges]);
 
   const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
+  const editingNode = useMemo(() => nodes.find(n => n.id === editingNodeId) || null, [nodes, editingNodeId]);
 
   const getCurrentWorkflowData = (): Workflow => ({
     id: currentId ?? crypto.randomUUID(),
@@ -56,6 +58,37 @@ export function useWorkflowViewModel(initialId?: string) {
     nodes: nodes as FlowNode[],
     edges
   });
+
+  const updateNodeById = useCallback((nodeId: string, patch: { label?: string; config?: any }) => {
+    setNodes(nds => nds.map(n => {
+      if (n.id !== nodeId) return n;
+      const nextLabel = patch.label !== undefined ? patch.label : n.data.label;
+      const nextConfig = patch.config !== undefined
+        ? { ...(n.data as any).config, ...patch.config }
+        : (n.data as any).config;
+      return { ...n, data: { ...n.data, label: nextLabel, config: nextConfig } };
+    }));
+  }, [setNodes]);
+
+  const duplicateNode = useCallback((nodeId: string) => {
+    const source = nodes.find(n => n.id === nodeId);
+    if (!source) return;
+    // Block duplicating START
+    if (source.type === "start" && nodes.some(n => n.type === "start")) return;
+    const newNode = makeNode(source.type as NodeType, {
+      x: source.position.x + 50,
+      y: source.position.y + 50
+    });
+    newNode.data = JSON.parse(JSON.stringify(source.data));
+    setNodes(nds => nds.concat(newNode));
+  }, [nodes, setNodes]);
+
+  const deleteNode = useCallback((nodeId: string) => {
+    setNodes(nds => nds.filter(n => n.id !== nodeId));
+    setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
+    if (editingNodeId === nodeId) setEditingNodeId(null);
+    if (selectedNodeId === nodeId) setSelectedNodeId(null);
+  }, [setNodes, setEdges, editingNodeId, selectedNodeId]);
 
   const actions = {
     saveCurrent: () => {
@@ -98,57 +131,62 @@ export function useWorkflowViewModel(initialId?: string) {
         setRunStatus("error");
       }
     },
-    addNode: (type: NodeType) => {
+    addNode: (type: NodeType, position?: { x: number; y: number }) => {
+      // START unique guard
+      if (type === "start" && nodes.some(n => n.type === "start")) return;
       const bump = (nodes?.length || 0) * 30;
-      setNodes(nds => nds.concat(makeNode(type, { x: 260 + bump, y: 220 + bump })));
+      const pos = position ?? { x: 260 + bump, y: 220 + bump };
+      setNodes(nds => nds.concat(makeNode(type, pos)));
     },
     onConnect: (params: Connection) =>
       setEdges(eds => {
-        const label =
-          params.sourceHandle === "true"
-            ? "TRUE"
-            : params.sourceHandle === "false"
-              ? "FALSE"
-              : undefined;
+        const isTrue = params.sourceHandle === "true";
+        const isFalse = params.sourceHandle === "false";
+        const label = isTrue ? "TRUE" : isFalse ? "FALSE" : undefined;
+        const edgeColor = isTrue ? "#28b478" : isFalse ? "#d23750" : undefined;
 
         const next: any = {
           ...params,
           id: crypto.randomUUID(),
           type: "smoothstep",
-          label
+          label,
+          ...(edgeColor && {
+            style: { stroke: edgeColor, strokeWidth: 2 },
+            markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 15, height: 12 },
+            labelStyle: { fill: edgeColor, fontWeight: 700, fontSize: 11 },
+            labelBgStyle: { fill: "rgba(14, 20, 36, 0.85)", stroke: edgeColor, strokeWidth: 1 },
+            labelBgPadding: [6, 4] as [number, number],
+            labelBgBorderRadius: 6
+          })
         };
 
         return addEdge(next, eds);
       }),
     updateSelectedNode: (patch: { label?: string; config?: any }) => {
-      setNodes(nds => nds.map(n => {
-        if (n.id !== selectedNodeId) return n;
-
-        const nextLabel = patch.label !== undefined ? patch.label : n.data.label;
-
-        const nextConfig =
-          patch.config !== undefined
-            ? { ...(n.data as any).config, ...patch.config }
-            : (n.data as any).config;
-
-        return { ...n, data: { ...n.data, label: nextLabel, config: nextConfig } };
-      }));
-    }
+      if (selectedNodeId) updateNodeById(selectedNodeId, patch);
+    },
+    updateNodeById,
+    duplicateNode,
+    deleteNode
   };
 
   return {
-    state: { workflows, currentId, nodes, edges, name, description, errors, hasValidated, selectedNode, runStatus, runStdout, runStderr, runExitCode },
+    state: { workflows, currentId, nodes, edges, name, description, errors, hasValidated, selectedNode, editingNode, editingNodeId, runStatus, runStdout, runStderr, runExitCode },
     refs: { fileInputRef },
     handlers: {
       ...actions,
       setName,
       setDescription,
       setCurrentId,
+      setNodes,
       onNodesChange,
       onEdgesChange,
+      setEditingNodeId,
       onNodeClick: (_: any, node: any) => setSelectedNodeId(node.id),
+      onNodeDoubleClick: (_: any, node: any) => setEditingNodeId(node.id),
       createNewWorkflow: () => persist(emptyWorkflow()),
-      createWorkflow1: () => persist(seedWorkflow1()), exportJson: () => {
+      createWorkflow1: () => persist(seedWorkflow1()),
+      exportJson: () => {
         const data = getCurrentWorkflowData();
         persist(data);
         exportJson(data);

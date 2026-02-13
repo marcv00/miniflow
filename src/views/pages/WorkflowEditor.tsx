@@ -1,17 +1,43 @@
-import ReactFlow, { Background, BackgroundVariant, MarkerType } from "reactflow";
+import { useCallback, useRef, useMemo } from "react";
+import ReactFlow, { Background, BackgroundVariant, MarkerType, ReactFlowProvider, useReactFlow } from "reactflow";
 import { Link, useParams } from "react-router-dom";
 import "reactflow/dist/style.css";
 
 import { nodeTypes } from "../components/nodes/nodeTypes";
 import { useWorkflowViewModel } from "../../viewmodels/useWorkflowViewModel";
 import { Sidebar } from "../components/Sidebar";
-import { NodeConfigPanel } from "../components/NodeConfigPanel";
+import { NodeConfigModal } from "../components/NodeConfigModal";
+import { NodeActionsProvider } from "../components/NodeActionsContext";
+import type { NodeType } from "../../models/workflow/types";
 
 import styles from "./WorkflowEditor.module.css";
 
-export default function WorkflowEditor() {
+function EditorInner() {
     const { id } = useParams<{ id: string }>();
     const { state, handlers, refs } = useWorkflowViewModel(id);
+    const reactFlowInstance = useReactFlow();
+    const wrapperRef = useRef<HTMLDivElement>(null);
+
+    /* ── Drag & Drop ── */
+    const onDragOver = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "copy";
+    }, []);
+
+    const onDrop = useCallback((e: React.DragEvent) => {
+        e.preventDefault();
+        const type = e.dataTransfer.getData("application/miniflow-node") as NodeType;
+        if (!type) return;
+        const position = reactFlowInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        handlers.addNode(type, position);
+    }, [reactFlowInstance, handlers]);
+
+    /* ── Node Actions for Context ── */
+    const nodeActions = useMemo(() => ({
+        onEdit: (nodeId: string) => handlers.setEditingNodeId(nodeId),
+        onDuplicate: (nodeId: string) => handlers.duplicateNode(nodeId),
+        onDelete: (nodeId: string) => handlers.deleteNode(nodeId)
+    }), [handlers]);
 
     return (
         <div className={styles.app}>
@@ -45,20 +71,25 @@ export default function WorkflowEditor() {
                     </div>
                 </header>
 
-                <main className={styles.canvasWrap}>
-                    <ReactFlow
-                        nodes={state.nodes}
-                        edges={state.edges}
-                        nodeTypes={nodeTypes}
-                        onNodesChange={handlers.onNodesChange}
-                        onEdgesChange={handlers.onEdgesChange}
-                        onConnect={handlers.onConnect}
-                        onNodeClick={handlers.onNodeClick}
-                        fitView
-                        defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
-                    >
-                        <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
-                    </ReactFlow>
+                <main className={styles.canvasWrap} ref={wrapperRef}>
+                    <NodeActionsProvider value={nodeActions}>
+                        <ReactFlow
+                            nodes={state.nodes}
+                            edges={state.edges}
+                            nodeTypes={nodeTypes}
+                            onNodesChange={handlers.onNodesChange}
+                            onEdgesChange={handlers.onEdgesChange}
+                            onConnect={handlers.onConnect}
+                            onNodeClick={handlers.onNodeClick}
+                            onNodeDoubleClick={handlers.onNodeDoubleClick}
+                            onDragOver={onDragOver}
+                            onDrop={onDrop}
+                            fitView
+                            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
+                        >
+                            <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
+                        </ReactFlow>
+                    </NodeActionsProvider>
                 </main>
 
                 <footer className={styles.errors}>
@@ -89,10 +120,22 @@ export default function WorkflowEditor() {
                 </footer>
             </div>
 
-            <NodeConfigPanel
-                selectedNode={state.selectedNode}
-                updateSelectedNode={handlers.updateSelectedNode}
-            />
+            {/* ── Node Config Modal ── */}
+            {state.editingNode && (
+                <NodeConfigModal
+                    node={state.editingNode}
+                    onSave={handlers.updateNodeById}
+                    onClose={() => handlers.setEditingNodeId(null)}
+                />
+            )}
         </div>
+    );
+}
+
+export default function WorkflowEditor() {
+    return (
+        <ReactFlowProvider>
+            <EditorInner />
+        </ReactFlowProvider>
     );
 }

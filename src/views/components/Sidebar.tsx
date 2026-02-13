@@ -91,12 +91,20 @@ export function Sidebar({ state, handlers }: SidebarProps) {
           <div className={styles.nodeGrid}>
             {NODE_PALETTE.map(n => {
               const Icon = n.icon;
+              const isStartDisabled = n.type === "start" && state.nodes.some((nd: any) => nd.type === "start");
               return (
                 <button
                   key={n.type}
                   className={`${styles.nodeCard} ${collapsed ? styles.nodeCardCollapsed : ""}`}
-                  onClick={() => handlers.addNode(n.type)}
-                  title={collapsed ? n.label : undefined}
+                  onClick={() => !isStartDisabled && handlers.addNode(n.type)}
+                  title={isStartDisabled ? "Ya existe un nodo Start" : (collapsed ? n.label : undefined)}
+                  style={isStartDisabled ? { opacity: 0.35, cursor: "not-allowed" } : undefined}
+                  draggable={!isStartDisabled}
+                  onDragStart={e => {
+                    if (isStartDisabled) { e.preventDefault(); return; }
+                    e.dataTransfer.setData("application/miniflow-node", n.type);
+                    e.dataTransfer.effectAllowed = "copy";
+                  }}
                 >
                   <Icon size={16} color={n.color} strokeWidth={2.2} />
                   {!collapsed && <span>{n.label}</span>}

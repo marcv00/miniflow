@@ -3,7 +3,7 @@
 .app {
   height: 100vh;
   display: grid;
-  grid-template-columns: auto 1fr 340px;
+  grid-template-columns: auto 1fr;
   background: #0b1020;
   color: #e6edf3;
   overflow: hidden;

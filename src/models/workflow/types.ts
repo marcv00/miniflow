@@ -9,6 +9,11 @@ export interface CommandConfig {
   scriptPath?: string
   args: string
   outputKey?: string
+  envVars?: string
+  cwd?: string
+  timeoutMs?: number
+  captureOutput?: string
+  errorPolicy?: ErrorPolicy
 }
 
 export interface HttpRequestConfig {
@@ -17,6 +22,9 @@ export interface HttpRequestConfig {
   timeoutMs: number
   retries: number
   errorPolicy: ErrorPolicy
+  headers?: string
+  queryParams?: string
+  body?: string
   map?: {
     status?: string
     payload?: string
@@ -25,6 +33,9 @@ export interface HttpRequestConfig {
 
 export interface ConditionalConfig {
   condition: string
+  leftOperand?: string
+  operator?: string
+  rightOperand?: string
 }
 
 export type NodeConfig =
