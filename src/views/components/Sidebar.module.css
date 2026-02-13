@@ -1,114 +1,349 @@
+/* ── Sidebar Container ── */
 .sidebar {
-  background: rgba(12, 18, 32, 0.9);
-  border-right: 1px solid rgba(255, 255, 255, 0.08);
-  padding: 12px;
-  overflow: auto;
-  backdrop-filter: blur(10px);
+  background: rgba(10, 16, 30, 0.92);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
   height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  backdrop-filter: blur(16px);
+  animation: sidebarIn 0.2s ease;
+  overflow: hidden;
+  width: 280px;
+  transition: width 0.2s ease;
 }
 
-.sectionTitle {
-  font-weight: 800;
-  margin: 16px 0 8px;
-  letter-spacing: 0.2px;
-  color: #78b4ff;
-  font-size: 14px;
-  text-transform: uppercase;
+.collapsed {
+  width: 52px;
 }
 
-.sectionTitle:first-child {
-  margin-top: 0;
+@keyframes sidebarIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
-.btn {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: #e6edf3;
-  padding: 9px 12px;
-  border-radius: 12px;
+/* ── Top Row (Brand + Toggle) ── */
+.topRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 12px 0;
+  min-height: 44px;
+}
+
+.collapsed .topRow {
+  justify-content: center;
+  padding: 14px 0 0;
+}
+
+.brand {
   cursor: pointer;
-  transition: all 0.15s ease;
-  width: 100%;
-  text-align: left;
-  font-size: 13px;
+  transition: opacity 0.15s;
+  flex: 1;
+  min-width: 0;
 }
 
-.btn:hover {
-  background: rgba(255, 255, 255, 0.08);
-  border-color: rgba(255, 255, 255, 0.18);
+.brand:hover {
+  opacity: 0.8;
 }
 
-.btn:active {
-  transform: translateY(1px);
+.brandLogo {
+  font-size: 18px;
+  font-weight: 900;
+  color: #78b4ff;
+  letter-spacing: -0.5px;
+  line-height: 1;
+  white-space: nowrap;
 }
 
-.card {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-  padding: 12px;
-  margin: 8px 0;
+.brandSub {
+  padding: 2px 16px 0;
+  font-size: 12px;
+  opacity: 0.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.field {
-  display: grid;
-  gap: 6px;
-  margin-bottom: 10px;
-}
-
-.field:last-child {
-  margin-bottom: 0;
-}
-
-.field label {
-  font-size: 11px;
-  opacity: 0.6;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.field input, .field textarea {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
+.toggleBtn {
+  background: none;
+  border: none;
   color: #e6edf3;
-  padding: 8px 10px;
-  border-radius: 10px;
-  outline: none;
-  font-size: 13px;
+  opacity: 0.35;
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.toggleBtn:hover {
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Divider ── */
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 8px 12px;
+  flex-shrink: 0;
+}
+
+.collapsed .divider {
+  margin: 8px 8px;
+}
+
+/* ── Scrollable area ── */
+.scrollArea {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0;
+}
+
+.scrollArea::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scrollArea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollArea::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+}
+
+.scrollArea::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* ── Section Header ── */
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  color: #78b4ff;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  transition: color 0.15s;
+  white-space: nowrap;
 }
 
-.field textarea {
-  resize: vertical;
-  min-height: 60px;
+.sectionHeader:hover {
+  color: #a0ccff;
 }
 
-.workflowListItem {
+/* ── Collapsible Body ── */
+.sectionBody {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.18s ease, opacity 0.18s ease;
+  opacity: 0;
+  padding: 0 10px;
+}
+
+.collapsed .sectionBody {
+  padding: 0 6px;
+}
+
+.sectionOpen {
+  max-height: 500px;
+  opacity: 1;
+}
+
+/* ── Node Cards ── */
+.nodeGrid {
   display: grid;
   gap: 4px;
-  padding: 12px;
+  padding-bottom: 4px;
+}
+
+.nodeCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: rgba(255, 255, 255, 0.02);
+  color: #e6edf3;
+  font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
-.workflowListItem:hover {
-  border-color: rgba(120, 180, 255, 0.3);
+.nodeCard:hover {
+  border-color: rgba(120, 180, 255, 0.25);
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.nodeCard:active {
+  transform: translateY(1px);
+}
+
+.nodeCardCollapsed {
+  padding: 10px;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+/* ── Summary Card ── */
+.summaryCard {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.summaryRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  opacity: 0.55;
+}
+
+.summaryDot {
+  opacity: 0.3;
+}
+
+/* ── Status Dot ── */
+.statusDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status_valid {
+  background: #28b478;
+  box-shadow: 0 0 6px rgba(40, 180, 120, 0.4);
+}
+
+.status_pending {
+  background: #f5a623;
+  box-shadow: 0 0 6px rgba(245, 166, 35, 0.3);
+}
+
+.status_invalid {
+  background: #d23750;
+  box-shadow: 0 0 6px rgba(210, 55, 80, 0.3);
+}
+
+/* ── Action Buttons ── */
+.actionGrid {
+  display: grid;
+  gap: 4px;
+  padding-bottom: 4px;
+}
+
+.actionBtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  color: #e6edf3;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.actionBtn:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.actionBtn:active {
+  transform: translateY(1px);
+}
+
+.actionBtnCollapsed {
+  padding: 10px;
+  justify-content: center;
+  border-radius: 10px;
+}
+
+/* CTA-style execute button */
+.actionPrimary {
+  background: linear-gradient(135deg, #78b4ff, #a78bfa);
+  color: #0b1020;
+  border: none;
+  font-weight: 700;
+}
+
+.actionPrimary:hover {
+  box-shadow: 0 6px 20px rgba(120, 180, 255, 0.25);
+  background: linear-gradient(135deg, #8dc2ff, #b49dfc);
+}
+
+/* ── Footer ── */
+.footer {
+  margin-top: auto;
+  padding: 10px 10px 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.collapsed .footer {
+  padding: 10px 6px 14px;
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  color: #e6edf3;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  opacity: 0.35;
+  transition: all 0.15s;
+  border-radius: 10px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.backBtn:hover {
+  opacity: 0.7;
   background: rgba(255, 255, 255, 0.04);
 }
 
-.workflowListItem.active {
-  border-color: rgba(120, 180, 255, 0.5);
-  background: rgba(120, 180, 255, 0.08);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.small {
-  font-size: 12px;
-  opacity: 0.6;
+.backBtnCollapsed {
+  justify-content: center;
+  padding: 8px;
 }

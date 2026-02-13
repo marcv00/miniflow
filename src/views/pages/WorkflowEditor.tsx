@@ -15,7 +15,7 @@ export default function WorkflowEditor() {
 
     return (
         <div className={styles.app}>
-            <Sidebar handlers={handlers} />
+            <Sidebar state={state} handlers={handlers} />
 
             <div className={styles.main}>
                 <header className={styles.topbar}>
@@ -29,12 +29,9 @@ export default function WorkflowEditor() {
                     </div>
 
                     <div className={styles.actions}>
-                        <button className={styles.btn} onClick={handlers.validateNow}>Validar</button>
-                        <button className={styles.btn} onClick={handlers.executeNow}>Ejecutar</button>
-                        <button className={styles.btn} onClick={handlers.saveCurrent}>Guardar</button>
-                        <button className={styles.btn} onClick={handlers.exportJson}>Export JSON</button>
-                        <button className={styles.btn} onClick={handlers.exportJava}>Export .java</button>
-                        <button className={styles.btn} onClick={handlers.openImport}>Import JSON</button>
+                        <button className={styles.btn} onClick={handlers.exportJson}>Exportar JSON</button>
+                        <button className={styles.btn} onClick={handlers.exportJava}>Exportar .java</button>
+                        <button className={styles.btn} onClick={handlers.openImport}>Importar JSON</button>
                         <button className={`${styles.btn} ${styles.danger}`} onClick={handlers.deleteCurrent}>
                             Eliminar
                         </button>

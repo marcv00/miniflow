@@ -3,7 +3,7 @@
 .app {
   height: 100vh;
   display: grid;
-  grid-template-columns: 280px 1fr 340px;
+  grid-template-columns: auto 1fr 340px;
   background: #0b1020;
   color: #e6edf3;
   overflow: hidden;
@@ -13,7 +13,8 @@
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
-  background: #070b14; /* Color de fondo base para el canvas */
+  background: #070b14;
+  /* Color de fondo base para el canvas */
 }
 
 .topbar {
@@ -95,7 +96,9 @@
   overflow-y: auto;
 }
 
-.errItem, .okItem, .neutralItem {
+.errItem,
+.okItem,
+.neutralItem {
   padding: 10px 14px;
   border-radius: 10px;
   margin-bottom: 6px;
