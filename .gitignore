@@ -54,3 +54,5 @@ bin/
 Thumbs.db
 ```
 
+# Temporary files
+.temp/

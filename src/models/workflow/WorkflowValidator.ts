@@ -1,16 +1,11 @@
-import type { FlowNode, FlowEdge } from "./types"
+import type { FlowNode, FlowEdge, ValidationReport, ValidationIssue } from "./types"
+
+/* ── helpers ── */
 
 const buildAdj = (nodes: FlowNode[], edges: FlowEdge[]) => {
   const adj: Record<string, string[]> = {}
-
-  nodes.forEach(n => {
-    adj[n.id] = []
-  })
-
-  edges.forEach(e => {
-    if (adj[e.source]) adj[e.source].push(e.target)
-  })
-
+  nodes.forEach(n => { adj[n.id] = [] })
+  edges.forEach(e => { if (adj[e.source]) adj[e.source].push(e.target) })
   return adj
 }
 
@@ -19,29 +14,19 @@ const detectCycle = (nodes: FlowNode[], edges: FlowEdge[]) => {
   const color: Record<string, 0 | 1 | 2> = {}
   let has = false
 
-  nodes.forEach(n => {
-    color[n.id] = 0
-  })
+  nodes.forEach(n => { color[n.id] = 0 })
 
   const dfs = (u: string) => {
     if (has) return
     color[u] = 1
-
     for (const v of adj[u] || []) {
-      if (color[v] === 1) {
-        has = true
-        return
-      }
+      if (color[v] === 1) { has = true; return }
       if (color[v] === 0) dfs(v)
     }
-
     color[u] = 2
   }
 
-  nodes.forEach(n => {
-    if (color[n.id] === 0) dfs(n.id)
-  })
-
+  nodes.forEach(n => { if (color[n.id] === 0) dfs(n.id) })
   return has
 }
 
@@ -49,26 +34,14 @@ const reachableFrom = (startId: string | null, nodes: FlowNode[], edges: FlowEdg
   const adj = buildAdj(nodes, edges)
   const vis: Record<string, boolean> = {}
   const q: string[] = []
-
-  nodes.forEach(n => {
-    vis[n.id] = false
-  })
-
-  if (startId) {
-    vis[startId] = true
-    q.push(startId)
-  }
-
+  nodes.forEach(n => { vis[n.id] = false })
+  if (startId) { vis[startId] = true; q.push(startId) }
   while (q.length) {
     const u = q.shift()!
     for (const v of adj[u] || []) {
-      if (!vis[v]) {
-        vis[v] = true
-        q.push(v)
-      }
+      if (!vis[v]) { vis[v] = true; q.push(v) }
     }
   }
-
   return vis
 }
 
@@ -77,116 +50,119 @@ const edgeLabel = (e: any) => {
   return raw.trim().toUpperCase()
 }
 
-export const validate = (nodes: FlowNode[], edges: FlowEdge[]) => {
-  const errors: string[] = []
+const nodeLabel = (n: FlowNode) => n.data?.label || n.type?.toUpperCase() || n.id
 
+/* ── main validator ── */
+export const validate = (nodes: FlowNode[], edges: FlowEdge[]): ValidationReport => {
+  const issues: ValidationIssue[] = []
+  const push = (severity: ValidationIssue["severity"], message: string, nodeId?: string, action?: ValidationIssue["action"]) => {
+    issues.push({ severity, message, nodeId, action: action ?? (nodeId ? "focus" : "none") })
+  }
+
+  /* RF-A21 — exactly one START */
   const starts = nodes.filter(n => n.type === "start")
-  if (starts.length !== 1) {
-    errors.push("Debe existir exactamente 1 nodo START.")
+  if (starts.length === 0) {
+    push("error", "Debe existir exactamente 1 nodo START.")
+  } else if (starts.length > 1) {
+    starts.slice(1).forEach(n => push("error", `Solo puede haber un nodo START (nodo "${nodeLabel(n)}" es duplicado).`, n.id))
   }
 
+  /* RF-A22 — no cycles */
   if (detectCycle(nodes, edges)) {
-    errors.push("No se permite ciclos en el workflow.")
+    push("error", "No se permiten ciclos en el workflow.")
   }
 
+  /* RF-A23 — all reachable from START */
   const startId = starts[0]?.id ?? null
   const reach = reachableFrom(startId, nodes, edges)
+  nodes.filter(n => startId && !reach[n.id]).forEach(n => {
+    push("warning", `El nodo "${nodeLabel(n)}" no es alcanzable desde START.`, n.id)
+  })
 
-  const unreachable = nodes.filter(n => startId && !reach[n.id])
-  if (unreachable.length) {
-    errors.push("Hay nodos no alcanzables desde START.")
-  }
-
+  /* END checks */
   const ends = nodes.filter(n => n.type === "end")
   if (ends.length !== 1) {
-    errors.push("Debe existir exactamente 1 nodo END.")
+    push("error", "Debe existir exactamente 1 nodo END.")
   }
 
   const endId = ends[0]?.id ?? null
   if (endId) {
     const endOut = edges.filter(e => e.source === endId)
     if (endOut.length) {
-      errors.push("El nodo END no debe tener salidas.")
+      push("error", "El nodo END no debe tener salidas.", endId)
     }
 
+    /* reverse-reachability to END */
     const rev: Record<string, string[]> = {}
     nodes.forEach(n => { rev[n.id] = [] })
-    edges.forEach(e => {
-      if (rev[e.target]) rev[e.target].push(e.source)
-    })
+    edges.forEach(e => { if (rev[e.target]) rev[e.target].push(e.source) })
 
     const canReachEnd: Record<string, boolean> = {}
     nodes.forEach(n => { canReachEnd[n.id] = false })
-
     const q: string[] = [endId]
     canReachEnd[endId] = true
-
     while (q.length) {
       const u = q.shift()!
       for (const v of rev[u] || []) {
-        if (!canReachEnd[v]) {
-          canReachEnd[v] = true
-          q.push(v)
-        }
+        if (!canReachEnd[v]) { canReachEnd[v] = true; q.push(v) }
       }
     }
-
-    const notEnding = nodes.filter(n => !canReachEnd[n.id])
-    if (notEnding.length) {
-      errors.push("Hay nodos que no llegan al nodo END.")
-    }
+    nodes.filter(n => !canReachEnd[n.id]).forEach(n => {
+      push("warning", `El nodo "${nodeLabel(n)}" no llega al nodo END.`, n.id)
+    })
 
     const terminals = nodes.filter(n => edges.filter(e => e.source === n.id).length === 0)
-    const badTerminals = terminals.filter(n => n.type !== "end")
-    if (badTerminals.length) {
-      errors.push("Solo END puede ser un nodo terminal (sin salidas).")
-    }
+    terminals.filter(n => n.type !== "end").forEach(n => {
+      push("error", `Solo END puede ser un nodo terminal (sin salidas). Nodo "${nodeLabel(n)}" no tiene salidas.`, n.id)
+    })
   }
 
+  /* RF-A24 — minimum config per type */
   nodes.forEach(n => {
     const cfg: any = n.data?.config || {}
 
     if (n.type === "http_request") {
-      if (!String(cfg.url || "").trim()) errors.push(`HTTP_REQUEST sin URL (node ${n.id}).`)
-      if (!String(cfg.method || "").trim()) errors.push(`HTTP_REQUEST sin método (node ${n.id}).`)
+      if (!String(cfg.url || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin URL.`, n.id)
+      if (!String(cfg.method || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin método.`, n.id)
       const timeout = Number(cfg.timeoutMs)
-      if (!Number.isFinite(timeout) || timeout <= 0) errors.push(`HTTP_REQUEST timeout inválido (node ${n.id}).`)
+      if (!Number.isFinite(timeout) || timeout <= 0) push("error", `HTTP_REQUEST "${nodeLabel(n)}" timeout inválido.`, n.id)
       const retries = Number(cfg.retries)
-      if (!Number.isFinite(retries) || retries < 0) errors.push(`HTTP_REQUEST retries inválido (node ${n.id}).`)
-      if (!String(cfg.errorPolicy || "").trim()) errors.push(`HTTP_REQUEST sin política de error (node ${n.id}).`)
+      if (!Number.isFinite(retries) || retries < 0) push("error", `HTTP_REQUEST "${nodeLabel(n)}" retries inválido.`, n.id)
+      if (!String(cfg.errorPolicy || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin política de error.`, n.id)
       const map = cfg.outputMapping || cfg.map
       if (!map || typeof map !== "object") {
-        errors.push(`HTTP_REQUEST sin mapeo de salida (node ${n.id}).`)
+        push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin mapeo de salida.`, n.id)
       } else {
-        if (!String(map.status || "").trim()) errors.push(`HTTP_REQUEST sin mapeo "status" (node ${n.id}).`)
-        if (!String(map.payload || "").trim()) errors.push(`HTTP_REQUEST sin mapeo "payload" (node ${n.id}).`)
+        if (!String(map.status || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin mapeo "status".`, n.id)
+        if (!String(map.payload || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin mapeo "payload".`, n.id)
       }
     }
 
+    /* RF-A25 — structural rules by type */
     if (n.type === "conditional") {
-      if (!String(cfg.condition || "").trim()) errors.push(`CONDITIONAL sin condición (node ${n.id}).`)
+      if (!String(cfg.condition || "").trim()) push("error", `CONDITIONAL "${nodeLabel(n)}" sin condición.`, n.id)
       const outs = edges.filter(e => e.source === n.id)
       const labels = outs.map(edgeLabel)
       const hasTrue = labels.includes("TRUE")
       const hasFalse = labels.includes("FALSE")
       if (!(hasTrue && hasFalse && outs.length === 2)) {
-        errors.push(`CONDITIONAL debe tener 2 salidas: TRUE y FALSE (node ${n.id}).`)
+        push("error", `CONDITIONAL "${nodeLabel(n)}" debe tener exactamente 2 salidas: TRUE y FALSE.`, n.id)
       }
     }
 
     if (n.type === "command") {
       const cmd = String(cfg.command || "").trim()
-      if (!cmd) {
-        errors.push(`COMMAND sin comando (node ${n.id}).`)
-      }
-
+      if (!cmd) push("error", `COMMAND "${nodeLabel(n)}" sin comando.`, n.id)
       const low = cmd.toLowerCase()
       const isPython = low === "python" || low.startsWith("python ") || low === "python3" || low.startsWith("python3 ")
       if (isPython && !String(cfg.scriptPath || "").trim()) {
-        errors.push(`COMMAND python requiere "Ruta script local" (node ${n.id}).`)
+        push("error", `COMMAND "${nodeLabel(n)}" python requiere "Ruta script local".`, n.id)
       }
     }
   })
 
-  return errors
+  return {
+    isValid: issues.filter(i => i.severity === "error").length === 0,
+    issues
+  }
 }

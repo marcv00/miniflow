@@ -3,11 +3,10 @@ import { useNavigate } from "react-router-dom";
 import {
   Zap, Globe, GitBranch, Terminal, Flag,
   ChevronDown, ChevronRight,
-  Save, CheckCircle, Play,
   ArrowLeft, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
-import type { NodeType } from "../../models/workflow/types";
+import type { NodeType, ValidationReport } from "../../models/workflow/types";
 
 const NODE_PALETTE = [
   { type: "start" as NodeType, label: "Start", icon: Zap, color: "#28b478" },
@@ -22,14 +21,10 @@ interface SidebarProps {
     name: string;
     nodes: any[];
     edges: any[];
-    hasValidated: boolean;
-    errors: string[];
+    validationReport?: ValidationReport | null;
   };
   handlers: {
     addNode: (type: NodeType) => void;
-    saveCurrent: () => void;
-    validateNow: () => void;
-    executeNow: () => void;
   };
 }
 
@@ -48,11 +43,10 @@ export function Sidebar({ state, handlers }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [nodesOpen, setNodesOpen] = useState(true);
   const [summaryOpen, setSummaryOpen] = useState(true);
-  const [actionsOpen, setActionsOpen] = useState(true);
 
-  const validationStatus = !state.hasValidated
+  const validationStatus = !state.validationReport
     ? "pending"
-    : state.errors.length === 0
+    : state.validationReport.isValid
       ? "valid"
       : "invalid";
 
@@ -138,36 +132,6 @@ export function Sidebar({ state, handlers }: SidebarProps) {
           </>
         )}
 
-        {/* ── Acciones Rápidas ── */}
-        <SectionHeader title="Acciones Rápidas" open={actionsOpen} onToggle={() => setActionsOpen(!actionsOpen)} collapsed={collapsed} />
-        <div className={`${styles.sectionBody} ${(collapsed || actionsOpen) ? styles.sectionOpen : ""}`}>
-          <div className={styles.actionGrid}>
-            <button
-              className={`${styles.actionBtn} ${collapsed ? styles.actionBtnCollapsed : ""}`}
-              onClick={handlers.saveCurrent}
-              title={collapsed ? "Guardar" : undefined}
-            >
-              <Save size={15} />
-              {!collapsed && <span>Guardar</span>}
-            </button>
-            <button
-              className={`${styles.actionBtn} ${collapsed ? styles.actionBtnCollapsed : ""}`}
-              onClick={handlers.validateNow}
-              title={collapsed ? "Validar" : undefined}
-            >
-              <CheckCircle size={15} />
-              {!collapsed && <span>Validar</span>}
-            </button>
-            <button
-              className={`${styles.actionBtn} ${styles.actionPrimary} ${collapsed ? styles.actionBtnCollapsed : ""}`}
-              onClick={handlers.executeNow}
-              title={collapsed ? "Ejecutar" : undefined}
-            >
-              <Play size={15} />
-              {!collapsed && <span>Ejecutar</span>}
-            </button>
-          </div>
-        </div>
       </div>
 
       {/* ── Footer ── */}

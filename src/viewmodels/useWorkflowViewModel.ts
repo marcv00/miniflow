@@ -4,7 +4,7 @@ import { makeNode, emptyWorkflow, seedWorkflow1 } from "../models/workflow/Workf
 import { validate } from "../models/workflow/WorkflowValidator";
 import { useWorkflowStorage } from "./useWorkflowStorage";
 import { useWorkflowIO } from "./useWorkflowIO";
-import type { FlowNode, Workflow, NodeType } from "../models/workflow/types";
+import type { FlowNode, Workflow, NodeType, ValidationReport } from "../models/workflow/types";
 
 export function useWorkflowViewModel(initialId?: string) {
   const { workflows, currentId, setCurrentId, persist, remove } = useWorkflowStorage();
@@ -23,14 +23,14 @@ export function useWorkflowViewModel(initialId?: string) {
   const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
   const [name, setName] = useState(current?.name ?? "WORKFLOW");
   const [description, setDescription] = useState(current?.description ?? "");
-  const [errors, setErrors] = useState<string[]>([]);
-  const [hasValidated, setHasValidated] = useState(false);
+  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
   const [runStatus, setRunStatus] = useState<"idle" | "running" | "success" | "error">("idle");
   const [runStdout, setRunStdout] = useState("");
   const [runStderr, setRunStderr] = useState("");
   const [runExitCode, setRunExitCode] = useState<number | null>(null);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
-  const { fileInputRef, exportJson, exportJava, onImportFile, openImport } = useWorkflowIO(persist);
+  const { exportJson, exportJava } = useWorkflowIO(persist);
 
   useEffect(() => {
     if (!current) return;
@@ -38,8 +38,7 @@ export function useWorkflowViewModel(initialId?: string) {
     setDescription(current.description);
     setNodes(current.nodes);
     setEdges(current.edges);
-    setErrors([]);
-    setHasValidated(false);
+    setValidationReport(null);
     setSelectedNodeId(null);
     setEditingNodeId(null);
     setRunStatus("idle");
@@ -93,25 +92,27 @@ export function useWorkflowViewModel(initialId?: string) {
   const actions = {
     saveCurrent: () => {
       persist(getCurrentWorkflowData());
+      setLastSavedAt(new Date());
     },
     deleteCurrent: () => {
       if (currentId) remove(currentId);
     },
     validateNow: () => {
-      setErrors(validate(nodes as FlowNode[], edges));
-      setHasValidated(true);
+      const report = validate(nodes as FlowNode[], edges);
+      setValidationReport(report);
+    },
+    closeValidation: () => {
+      setValidationReport(null);
     },
     executeNow: async () => {
       const data = getCurrentWorkflowData();
       persist(data);
+      setLastSavedAt(new Date());
 
-      const errs = validate(nodes as FlowNode[], edges);
-      setErrors(errs);
-      setHasValidated(true);
+      const report = validate(nodes as FlowNode[], edges);
+      setValidationReport(report);
 
-      if (errs.length) {
-        const msg = ["No se puede ejecutar: el workflow es inválido.", "", ...errs.slice(0, 6)].join("\n");
-        alert(msg);
+      if (!report.isValid) {
         return;
       }
 
@@ -171,8 +172,7 @@ export function useWorkflowViewModel(initialId?: string) {
   };
 
   return {
-    state: { workflows, currentId, nodes, edges, name, description, errors, hasValidated, selectedNode, editingNode, editingNodeId, runStatus, runStdout, runStderr, runExitCode },
-    refs: { fileInputRef },
+    state: { workflows, currentId, nodes, edges, name, description, validationReport, selectedNode, editingNode, editingNodeId, runStatus, runStdout, runStderr, runExitCode, lastSavedAt },
     handlers: {
       ...actions,
       setName,
@@ -196,8 +196,7 @@ export function useWorkflowViewModel(initialId?: string) {
         persist(data);
         exportJava(data);
       },
-      onImportFile,
-      openImport
+      importWorkflow: (wf: any) => persist({ ...wf, id: wf.id || crypto.randomUUID() })
     }
   };
 }

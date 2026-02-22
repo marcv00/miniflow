@@ -61,3 +61,19 @@ export interface Workflow {
   lastRunAt?: string
   validationStatus?: 'valid' | 'invalid' | 'pending'
 }
+
+/* ── Validation (RF-A20..RF-A26) ── */
+export type ValidationSeverity = "error" | "warning" | "info"
+
+export interface ValidationIssue {
+  severity: ValidationSeverity
+  nodeId?: string
+  message: string
+  /** 'focus' = UI can centre the canvas on this node */
+  action?: "focus" | "none"
+}
+
+export interface ValidationReport {
+  isValid: boolean
+  issues: ValidationIssue[]
+}
