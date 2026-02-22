@@ -36,6 +36,7 @@ export interface ConditionalConfig {
   leftOperand?: string
   operator?: string
   rightOperand?: string
+  errorPolicy?: ErrorPolicy
 }
 
 export type NodeConfig =

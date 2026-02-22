@@ -3,6 +3,7 @@ import {
     Zap, Globe, GitBranch, Terminal, Flag,
     X, FlaskConical
 } from "lucide-react";
+import { CustomSelect } from "./CustomSelect";
 import styles from "./NodeConfigModal.module.css";
 
 const TYPE_META: Record<string, { icon: any; color: string; label: string }> = {
@@ -112,13 +113,17 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                             <div className={styles.row2}>
                                 <div className={styles.field}>
                                     <label>Método</label>
-                                    <select value={config.method || "GET"} onChange={e => patchConfig("method", e.target.value)}>
-                                        <option value="GET">GET</option>
-                                        <option value="POST">POST</option>
-                                        <option value="PUT">PUT</option>
-                                        <option value="PATCH">PATCH</option>
-                                        <option value="DELETE">DELETE</option>
-                                    </select>
+                                    <CustomSelect
+                                        value={config.method || "GET"}
+                                        onChange={v => patchConfig("method", v)}
+                                        options={[
+                                            { value: "GET", label: "GET" },
+                                            { value: "POST", label: "POST" },
+                                            { value: "PUT", label: "PUT" },
+                                            { value: "PATCH", label: "PATCH" },
+                                            { value: "DELETE", label: "DELETE" },
+                                        ]}
+                                    />
                                 </div>
                                 <div className={styles.field} style={{ flex: 2 }}>
                                     <label>URL</label>
@@ -167,14 +172,6 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 </div>
                             </div>
 
-                            <div className={styles.sectionLabel}>Configuración</div>
-                            <div className={styles.field}>
-                                <label>Política de error</label>
-                                <select value={config.errorPolicy || "STOP_ON_FAIL"} onChange={e => patchConfig("errorPolicy", e.target.value)}>
-                                    <option value="STOP_ON_FAIL">STOP_ON_FAIL</option>
-                                    <option value="CONTINUE_ON_FAIL">CONTINUE_ON_FAIL</option>
-                                </select>
-                            </div>
                         </>
                     )}
 
@@ -218,11 +215,15 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                             <div className={styles.row2}>
                                 <div className={styles.field}>
                                     <label>Captura de salida</label>
-                                    <select value={config.captureOutput || "stdout"} onChange={e => patchConfig("captureOutput", e.target.value)}>
-                                        <option value="stdout">stdout</option>
-                                        <option value="stderr">stderr</option>
-                                        <option value="both">both</option>
-                                    </select>
+                                    <CustomSelect
+                                        value={config.captureOutput || "stdout"}
+                                        onChange={v => patchConfig("captureOutput", v)}
+                                        options={[
+                                            { value: "stdout", label: "stdout" },
+                                            { value: "stderr", label: "stderr" },
+                                            { value: "both", label: "both" },
+                                        ]}
+                                    />
                                 </div>
                                 <div className={styles.field}>
                                     <label>Output key (contexto)</label>
@@ -230,14 +231,6 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 </div>
                             </div>
 
-                            <div className={styles.sectionLabel}>Configuración</div>
-                            <div className={styles.field}>
-                                <label>Política de error</label>
-                                <select value={config.errorPolicy || "STOP_ON_FAIL"} onChange={e => patchConfig("errorPolicy", e.target.value)}>
-                                    <option value="STOP_ON_FAIL">STOP_ON_FAIL</option>
-                                    <option value="CONTINUE_ON_FAIL">CONTINUE_ON_FAIL</option>
-                                </select>
-                            </div>
                         </>
                     )}
 
@@ -253,15 +246,19 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 </div>
                                 <div className={styles.field} style={{ flex: 1 }}>
                                     <label>Operador</label>
-                                    <select value={config.operator || "=="} onChange={e => patchConfig("operator", e.target.value)}>
-                                        <option value="==">==</option>
-                                        <option value="!=">!=</option>
-                                        <option value=">">&gt;</option>
-                                        <option value="<">&lt;</option>
-                                        <option value=">=">&gt;=</option>
-                                        <option value="<=">&lt;=</option>
-                                        <option value="contains">contains</option>
-                                    </select>
+                                    <CustomSelect
+                                        value={config.operator || "=="}
+                                        onChange={v => patchConfig("operator", v)}
+                                        options={[
+                                            { value: "==", label: "==" },
+                                            { value: "!=", label: "!=" },
+                                            { value: ">", label: ">" },
+                                            { value: "<", label: "<" },
+                                            { value: ">=", label: ">=" },
+                                            { value: "<=", label: "<=" },
+                                            { value: "contains", label: "contains" },
+                                        ]}
+                                    />
                                 </div>
                                 <div className={styles.field} style={{ flex: 2 }}>
                                     <label>Operando derecho</label>
@@ -283,6 +280,19 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
 
                             <div className={styles.infoBox}>
                                 Las rutas TRUE y FALSE se asignan automáticamente a los handles del nodo.
+                            </div>
+
+                            <div className={styles.sectionLabel}>Configuración</div>
+                            <div className={styles.field}>
+                                <label>Política de error</label>
+                                <CustomSelect
+                                    value={config.errorPolicy || "STOP_ON_FAIL"}
+                                    onChange={v => patchConfig("errorPolicy", v)}
+                                    options={[
+                                        { value: "STOP_ON_FAIL", label: "STOP_ON_FAIL" },
+                                        { value: "CONTINUE_ON_FAIL", label: "CONTINUE_ON_FAIL" },
+                                    ]}
+                                />
                             </div>
                         </>
                     )}

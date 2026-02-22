@@ -1,8 +1,9 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld("electronAPI", {
-  saveJson: (content:any) => ipcRenderer.invoke("save-json", content),
+  saveJson: (content: any) => ipcRenderer.invoke("save-json", content),
   openJson: () => ipcRenderer.invoke("open-json"),
-  runJavaTest: (name:any) => ipcRenderer.invoke("run-java-test", name),
-  runWorkflow: (workflowJson:any) => ipcRenderer.invoke("run-workflow", workflowJson),
+  runJavaTest: (name: any) => ipcRenderer.invoke("run-java-test", name),
+  runWorkflow: (workflowJson: any) => ipcRenderer.invoke("run-workflow", workflowJson),
+  testNode: (nodeJson: any) => ipcRenderer.invoke("test-node", nodeJson),
 });

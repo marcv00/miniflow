@@ -7,10 +7,12 @@ public class ExecutionContext {
     private static ExecutionContext instance;
     private final Map<String, Object> variables = new HashMap<>();
 
-    private ExecutionContext() {}
+    private ExecutionContext() {
+    }
 
     public static ExecutionContext getInstance() {
-        if (instance == null) instance = new ExecutionContext();
+        if (instance == null)
+            instance = new ExecutionContext();
         return instance;
     }
 
@@ -24,5 +26,9 @@ public class ExecutionContext {
 
     public void clear() {
         variables.clear();
+    }
+
+    public Map<String, Object> getAllVariables() {
+        return new HashMap<>(variables);
     }
 }

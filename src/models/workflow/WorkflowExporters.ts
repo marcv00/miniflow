@@ -1,4 +1,5 @@
 import type { Workflow } from "./types"
+import { serializeWorkflow } from "./WorkflowSerializer"
 
 export const exportTextFile = (
   content: string,
@@ -16,14 +17,14 @@ export const exportTextFile = (
 
 export const exportWorkflowJson = (wf: Workflow) =>
   exportTextFile(
-    JSON.stringify(wf, null, 2),
+    JSON.stringify(serializeWorkflow(wf), null, 2),
     `${wf.name.replaceAll(" ", "_")}.json`,
     "application/json"
   )
 
 export const exportWorkflowJava = (wf: Workflow) => {
   const className = "Workflow_" + wf.name.replace(/\W+/g, "_")
-  const json = JSON.stringify(wf, null, 2)
+  const json = JSON.stringify(serializeWorkflow(wf), null, 2)
     .replace(/\\/g, "\\\\")
     .replace(/"/g, "\\\"")
     .replace(/\n/g, "\\n")

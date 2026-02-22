@@ -1,114 +1,209 @@
 package com.miniflow.core;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.miniflow.context.ExecutionContext;
 import com.miniflow.factory.ExecutorFactory;
-import com.miniflow.model.Connection;
-import com.miniflow.model.Node;
-import com.miniflow.model.Workflow;
-import java.util.Map;
-import java.util.Optional;
+import com.miniflow.model.*;
+import com.miniflow.store.RunStore;
 
+import java.util.*;
+
+/**
+ * Orchestrates workflow execution following node connections.
+ *
+ * RF-B04: Execute nodes following workflow connections.
+ * RF-B05: Maintain a shared execution context.
+ * RF-B06: Each node can read/write to the context.
+ * RF-B12: Apply per-node error policy (STOP_ON_FAIL / CONTINUE_ON_FAIL).
+ */
 public class WorkflowRunner {
 
-    public void run(Workflow workflow) {
+    private final RunStore runStore;
+    private final ObjectMapper mapper;
+
+    public WorkflowRunner() {
+        this.runStore = new RunStore();
+        this.mapper = new ObjectMapper();
+        this.mapper.enable(SerializationFeature.INDENT_OUTPUT);
+    }
+
+    /**
+     * Runs the full workflow, creating a Run with StepRuns.
+     * Outputs the complete Run as JSON to stdout.
+     */
+    public Run run(Workflow workflow) {
         ExecutionContext context = ExecutionContext.getInstance();
         context.clear();
 
-        long workflowStart = System.currentTimeMillis();
-        boolean hasErrors = false;
-
-        String workflowName = (workflow != null && workflow.name != null && !workflow.name.isBlank())
+        String workflowName = (workflow.name != null && !workflow.name.isBlank())
                 ? workflow.name
                 : "Workflow";
 
-        System.out.println("Ejecutando \"" + workflowName + "\":");
-        System.out.println("======================");
+        // RF-B03: Create Run entity
+        Run run = new Run(UUID.randomUUID().toString(), workflowName);
+        boolean hasErrors = false;
 
-        Node currentNode = workflow.nodes.stream()
-                .filter(n -> n.type != null && n.type.equalsIgnoreCase("START"))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("No START node found"));
+        System.err.println("Ejecutando \"" + workflowName + "\":");
+        System.err.println("======================");
 
-        while (currentNode != null) {
-            String error = null;
+        try {
+            // Find START node
+            Node currentNode = workflow.nodes.stream()
+                    .filter(n -> n.type != null && n.type.equalsIgnoreCase("START"))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("No START node found"));
 
-            try {
-                ExecutorFactory.getExecutor(currentNode.type)
-                        .execute(currentNode, context);
-            } catch (Exception e) {
-                hasErrors = true;
-                error = (e.getMessage() == null || e.getMessage().isBlank())
-                        ? e.getClass().getSimpleName()
-                        : e.getMessage();
+            while (currentNode != null) {
+                // RF-B10: Create StepRun for each node
+                StepRun step = new StepRun(
+                        currentNode.id,
+                        currentNode.type != null ? currentNode.type.toUpperCase() : "UNKNOWN",
+                        safeLabel(currentNode));
+                step.markRunning();
+                run.addStep(step);
 
-                context.setVariable("__lastError", error);
+                // Capture context snapshot before execution
+                Set<String> keysBefore = new HashSet<>(context.getAllVariables().keySet());
+
+                String error = null;
+                try {
+                    ExecutorFactory.getExecutor(currentNode.type)
+                            .execute(currentNode, context);
+                } catch (Exception e) {
+                    hasErrors = true;
+                    error = (e.getMessage() == null || e.getMessage().isBlank())
+                            ? e.getClass().getSimpleName()
+                            : e.getMessage();
+                    context.setVariable("__lastError", error);
+                }
+
+                // RF-B11: Record output — capture variables produced by this node
+                Map<String, Object> producedVars = new LinkedHashMap<>();
+                for (Map.Entry<String, Object> entry : context.getAllVariables().entrySet()) {
+                    if (!keysBefore.contains(entry.getKey()) && !entry.getKey().startsWith("__")) {
+                        producedVars.put(entry.getKey(), entry.getValue());
+                    }
+                }
+
+                if (error != null) {
+                    step.markError(error);
+                    printStepResult(currentNode, step);
+
+                    // RF-B12: Apply error policy
+                    String policy = resolveErrorPolicy(currentNode);
+                    if ("CONTINUE_ON_FAIL".equals(policy)) {
+                        System.err.println("  → errorPolicy=CONTINUE_ON_FAIL, continuando...");
+                        currentNode = resolveNextNode(workflow, currentNode, context);
+                        continue;
+                    } else {
+                        System.err.println("  → errorPolicy=STOP_ON_FAIL, deteniendo.");
+                        break;
+                    }
+                } else {
+                    step.markSuccess(producedVars);
+                    printStepResult(currentNode, step);
+                }
+
+                if ("END".equalsIgnoreCase(currentNode.type))
+                    break;
+
+                currentNode = resolveNextNode(workflow, currentNode, context);
             }
 
-            String response = buildResponse(currentNode, context, error);
-            printNodeBlock(currentNode, response);
-
-            // HARD STOP on any error
-            if (error != null)
-                break;
-
-            if ("END".equalsIgnoreCase(currentNode.type))
-                break;
-
-            currentNode = resolveNextNode(workflow, currentNode, context);
+        } catch (Exception e) {
+            hasErrors = true;
+            run.fail();
+            System.err.println("FATAL: " + e.getMessage());
         }
 
+        // Finalize run
+        if (!"FAILED".equals(run.status)) {
+            run.finish(hasErrors);
+        }
         context.setVariable("__workflowHasErrors", hasErrors);
 
-        long workflowEnd = System.currentTimeMillis();
-        System.out.println("=============");
-        System.out.println("Ejecucion completada en " + (workflowEnd - workflowStart) + " ms");
+        // Persist run to JSON file
+        try {
+            runStore.save(run);
+        } catch (Exception e) {
+            System.err.println("Warning: Could not persist run: " + e.getMessage());
+        }
+
+        // Output Run as JSON to stdout (this is what Electron reads)
+        try {
+            System.out.println(mapper.writeValueAsString(run));
+        } catch (Exception e) {
+            System.err.println("Error serializing Run: " + e.getMessage());
+        }
+
+        System.err.println("=============");
+        System.err.println("Ejecucion completada - Status: " + run.status);
+
+        return run;
     }
 
-    private void printNodeBlock(Node node, String response) {
-        System.out.println("Nodo: \"" + node.id + "\"");
-        System.out.println("Descripcion: " + safeLabel(node));
-        System.out.println("Tipo: " + (node.type == null ? "" : node.type));
-        System.out.println("Respuesta: " + response);
-        System.out.println("======================");
+    /**
+     * Executes a single node for testing (N8N-style test).
+     */
+    public Map<String, Object> testSingleNode(Node node) {
+        ExecutionContext context = ExecutionContext.getInstance();
+        context.clear();
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        long start = System.currentTimeMillis();
+
+        try {
+            ExecutorFactory.getExecutor(node.type).execute(node, context);
+            long duration = System.currentTimeMillis() - start;
+
+            result.put("ok", true);
+            result.put("durationMs", duration);
+            result.put("output", context.getAllVariables());
+            result.put("error", null);
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - start;
+            result.put("ok", false);
+            result.put("durationMs", duration);
+            result.put("output", context.getAllVariables());
+            result.put("error", e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName());
+        }
+
+        return result;
     }
 
-    private String buildResponse(Node node, ExecutionContext context, String error) {
-        if (error != null)
-            return "ERROR: " + error;
+    // ─── Private Helpers ──────────────────────────────────────
 
-        String t = node.type == null ? "" : node.type.toUpperCase();
-
-        if (t.equals("HTTP_REQUEST")) {
-            Map<String, Object> cfg = safeConfig(node);
-            String method = cfg.get("method") == null ? "GET" : String.valueOf(cfg.get("method"));
-            String url = cfg.get("url") == null ? "" : String.valueOf(cfg.get("url"));
-            Object status = context.getVariable("status");
-            return "HTTP " + method.toUpperCase() + " " + url + " -> " + status;
+    private void printStepResult(Node node, StepRun step) {
+        System.err.println("Nodo: \"" + node.id + "\" (" + safeLabel(node) + ")");
+        System.err.println("  Tipo: " + (node.type == null ? "" : node.type));
+        System.err.println("  Status: " + step.status);
+        if (step.error != null) {
+            System.err.println("  Error: " + step.error);
         }
+        System.err.println("  Duracion: " + step.durationMs + " ms");
+        System.err.println("======================");
+    }
 
-        if (t.equals("CONDITIONAL")) {
-            Object branch = context.getVariable("__branch");
-            return "Branch: " + branch;
+    /**
+     * Resolves the error policy for a given node from its config.
+     * Default is STOP_ON_FAIL.
+     */
+    private String resolveErrorPolicy(Node node) {
+        try {
+            Map<String, Object> cfg = node.getEffectiveConfig();
+            Object policy = cfg.get("errorPolicy");
+            if (policy != null)
+                return policy.toString();
+        } catch (Exception ignored) {
         }
-
-        if (t.equals("COMMAND")) {
-            Map<String, Object> cfg = safeConfig(node);
-            String cmd = cfg.get("command") == null ? "" : String.valueOf(cfg.get("command"));
-            String args = cfg.get("args") == null ? "" : String.valueOf(cfg.get("args"));
-            String full = args.isBlank() ? cmd : cmd + " " + args;
-
-            Object out = context.getVariable("lastStdout");
-            String stdout = out == null ? "" : String.valueOf(out).trim();
-
-            return stdout.isBlank()
-                    ? "Comando ejecutado: " + full
-                    : "Comando: " + full + " | Salida: " + stdout;
-        }
-
-        return "OK";
+        return "STOP_ON_FAIL";
     }
 
     private String safeLabel(Node node) {
+        // Check direct label field (portable format)
+        if (node.label != null && !node.label.isEmpty())
+            return node.label;
         try {
             if (node.data == null)
                 return "";
@@ -118,19 +213,6 @@ public class WorkflowRunner {
         } catch (Exception ignored) {
         }
         return "";
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> safeConfig(Node node) {
-        try {
-            if (node.data == null)
-                return Map.of();
-            Object cfg = node.data.get("config");
-            if (cfg instanceof Map<?, ?> m)
-                return (Map<String, Object>) m;
-        } catch (Exception ignored) {
-        }
-        return Map.of();
     }
 
     private Node resolveNextNode(Workflow workflow, Node currentNode, ExecutionContext context) {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useMemo, useState } from "react";
 import ReactFlow, { Background, BackgroundVariant, MarkerType, ReactFlowProvider, useReactFlow } from "reactflow";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -9,6 +9,7 @@ import "reactflow/dist/style.css";
 
 import { nodeTypes } from "../components/nodes/nodeTypes";
 import { useWorkflowViewModel } from "../../viewmodels/useWorkflowViewModel";
+import { serializeWorkflow } from "../../models/workflow/WorkflowSerializer";
 import { Sidebar } from "../components/Sidebar";
 import { NodeConfigModal } from "../components/NodeConfigModal";
 import { NodeActionsProvider } from "../components/NodeActionsContext";
@@ -39,6 +40,20 @@ function EditorInner() {
     const [importOpen, setImportOpen] = useState(false);
     const [importJson, setImportJson] = useState("");
     const [deleteOpen, setDeleteOpen] = useState(false);
+    const [statusExpanded, setStatusExpanded] = useState(false);
+
+    // Auto-hide status pill after 8s on success
+    useEffect(() => {
+        if (state.runStatus === "success") {
+            const timer = setTimeout(() => {
+                // Reset to idle after 8s on success
+            }, 8000);
+            return () => clearTimeout(timer);
+        }
+        if (state.runStatus === "running") {
+            setStatusExpanded(false);
+        }
+    }, [state.runStatus]);
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -48,7 +63,8 @@ function EditorInner() {
     const copyToClipboard = useCallback(() => {
         handlers.saveCurrent();
         const data = { id: state.currentId, name: state.name, description: state.description, nodes: state.nodes, edges: state.edges };
-        navigator.clipboard.writeText(JSON.stringify(data, null, 2));
+        const portable = serializeWorkflow(data as any);
+        navigator.clipboard.writeText(JSON.stringify(portable, null, 2));
         showToast("El workflow ha sido copiado al portapapeles");
     }, [handlers, state, showToast]);
 
@@ -157,21 +173,54 @@ function EditorInner() {
                     />
                 )}
 
-                {/* ── Run status footer ── */}
-                {state.runStatus !== "idle" && (
-                    <footer className={styles.errors}>
-                        {state.runStatus === "running" ? (
-                            <div className={styles.neutralItem}>⏳ Ejecutando...</div>
-                        ) : state.runStatus === "success" ? (
-                            <div className={styles.okItem}>🏁 Ejecución terminada (exit {state.runExitCode ?? 0})</div>
-                        ) : (
-                            <div className={styles.errItem}>❌ Ejecución fallida (exit {state.runExitCode ?? "?"})</div>
+                {/* ── Engine Status Pill (always visible) ── */}
+                <div className={styles.statusPillWrap}>
+                    <button
+                        className={`${styles.statusPill} ${styles[`statusPill_${state.runStatus}`]}`}
+                        onClick={() => {
+                            if (state.runStatus === "idle") {
+                                handlers.executeNow();
+                            } else if (state.runStatus !== "running") {
+                                setStatusExpanded(!statusExpanded);
+                            }
+                        }}
+                        title={state.runStatus === "idle" ? "Click para ejecutar" : state.runStatus === "running" ? "Ejecutando…" : "Click para ver detalles"}
+                    >
+                        <span className={styles.statusDot} />
+                        <span className={styles.statusLabel}>
+                            {state.runStatus === "idle" && "Motor listo"}
+                            {state.runStatus === "running" && "Ejecutando…"}
+                            {state.runStatus === "success" && `✓ Ejecución exitosa`}
+                            {state.runStatus === "error" && `✕ Error en ejecución`}
+                        </span>
+                        {state.runStatus === "running" && <span className={styles.statusSpinner} />}
+                        {(state.runStatus === "success" || state.runStatus === "error") && (
+                            <span className={styles.statusChevron}>{statusExpanded ? "▾" : "▸"}</span>
                         )}
-                        {(state.runStdout || state.runStderr) && (
-                            <pre className={styles.runOutput}>{(state.runStdout ? state.runStdout : "") + (state.runStderr ? "\n" + state.runStderr : "")}</pre>
-                        )}
-                    </footer>
-                )}
+                    </button>
+
+                    {statusExpanded && state.runStatus !== "running" && state.runStatus !== "idle" && (
+                        <div className={styles.statusDetail}>
+                            {state.runResult?.steps?.length > 0 && (
+                                <div className={styles.stepsList}>
+                                    {state.runResult.steps.map((step: any, i: number) => (
+                                        <div key={i} className={`${styles.stepItem} ${step.status === "ERROR" ? styles.stepError : styles.stepOk}`}>
+                                            <span className={styles.stepIndex}>{i + 1}</span>
+                                            <span className={styles.stepLabel}>{step.nodeLabel || step.nodeId}</span>
+                                            <span className={styles.stepType}>{step.nodeType}</span>
+                                            <span className={styles.stepStatus}>{step.status}</span>
+                                            <span className={styles.stepDuration}>{step.durationMs}ms</span>
+                                            {step.error && <div className={styles.stepErrorMsg}>{step.error}</div>}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                            {state.runStderr && (
+                                <pre className={styles.runOutput}>{state.runStderr}</pre>
+                            )}
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* ── Node Config Modal ── */}
@@ -210,7 +259,11 @@ function EditorInner() {
                                 onClick={() => {
                                     try {
                                         const obj = JSON.parse(importJson);
-                                        handlers.importWorkflow({ ...obj, id: obj.id || crypto.randomUUID() });
+                                        if (!obj.nodes || !Array.isArray(obj.nodes)) {
+                                            showToast("JSON inválido — debe tener un array 'nodes'");
+                                            return;
+                                        }
+                                        handlers.importWorkflow(obj);
                                         setImportOpen(false);
                                         showToast("Workflow importado exitosamente");
                                     } catch {

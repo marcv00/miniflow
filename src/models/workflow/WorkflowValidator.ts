@@ -125,22 +125,19 @@ export const validate = (nodes: FlowNode[], edges: FlowEdge[]): ValidationReport
       if (!String(cfg.url || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin URL.`, n.id)
       if (!String(cfg.method || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin método.`, n.id)
       const timeout = Number(cfg.timeoutMs)
-      if (!Number.isFinite(timeout) || timeout <= 0) push("error", `HTTP_REQUEST "${nodeLabel(n)}" timeout inválido.`, n.id)
+      if (cfg.timeoutMs !== undefined && (!Number.isFinite(timeout) || timeout <= 0)) push("error", `HTTP_REQUEST "${nodeLabel(n)}" timeout inválido.`, n.id)
       const retries = Number(cfg.retries)
-      if (!Number.isFinite(retries) || retries < 0) push("error", `HTTP_REQUEST "${nodeLabel(n)}" retries inválido.`, n.id)
-      if (!String(cfg.errorPolicy || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin política de error.`, n.id)
-      const map = cfg.outputMapping || cfg.map
-      if (!map || typeof map !== "object") {
-        push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin mapeo de salida.`, n.id)
-      } else {
-        if (!String(map.status || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin mapeo "status".`, n.id)
-        if (!String(map.payload || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin mapeo "payload".`, n.id)
-      }
+      if (cfg.retries !== undefined && (!Number.isFinite(retries) || retries < 0)) push("error", `HTTP_REQUEST "${nodeLabel(n)}" retries inválido.`, n.id)
     }
 
     /* RF-A25 — structural rules by type */
     if (n.type === "conditional") {
-      if (!String(cfg.condition || "").trim()) push("error", `CONDITIONAL "${nodeLabel(n)}" sin condición.`, n.id)
+      // Accept either legacy "condition" string OR structured operands
+      const hasLegacy = String(cfg.condition || "").trim()
+      const hasStructured = String(cfg.leftOperand || "").trim() && String(cfg.operator || "").trim()
+      if (!hasLegacy && !hasStructured) {
+        push("error", `CONDITIONAL "${nodeLabel(n)}" sin condición.`, n.id)
+      }
       const outs = edges.filter(e => e.source === n.id)
       const labels = outs.map(edgeLabel)
       const hasTrue = labels.includes("TRUE")

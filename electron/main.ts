@@ -49,7 +49,7 @@ ipcMain.handle("open-json", async () => {
 ipcMain.handle("run-workflow", async (_event, workflowJson: string) => {
   const jarPath = path.resolve(__dirname, "..", "dist-java-engine", "engine.jar")
   if (!fs.existsSync(jarPath)) {
-    return { ok: false, exitCode: -1, stdout: "", stderr: "engine.jar no existe. Ejecuta: npm run build:engine" }
+    return { ok: false, exitCode: -1, stdout: "", stderr: "engine.jar no existe. Ejecuta: npm run build:engine", run: null }
   }
 
   return await new Promise((resolve) => {
@@ -62,10 +62,43 @@ ipcMain.handle("run-workflow", async (_event, workflowJson: string) => {
     child.stderr.on("data", (d) => { stderr += d.toString() })
 
     child.on("close", (code) => {
-      resolve({ ok: (code ?? 0) === 0, exitCode: code ?? 0, stdout, stderr })
+      let run = null
+      try {
+        run = JSON.parse(stdout)
+      } catch { /* stdout may not be valid JSON */ }
+      resolve({ ok: (code ?? 0) === 0, exitCode: code ?? 0, stdout, stderr, run })
     })
 
     child.stdin.write((workflowJson || "") + "\n")
+    child.stdin.end()
+  })
+})
+
+ipcMain.handle("test-node", async (_event, nodeJson: string) => {
+  const jarPath = path.resolve(__dirname, "..", "dist-java-engine", "engine.jar")
+  if (!fs.existsSync(jarPath)) {
+    return { ok: false, output: null, error: "engine.jar no existe", durationMs: 0 }
+  }
+
+  return await new Promise((resolve) => {
+    const child = spawn("java", ["-jar", jarPath, "--test-node"])
+
+    let stdout = ""
+    let stderr = ""
+
+    child.stdout.on("data", (d) => { stdout += d.toString() })
+    child.stderr.on("data", (d) => { stderr += d.toString() })
+
+    child.on("close", () => {
+      try {
+        const result = JSON.parse(stdout)
+        resolve(result)
+      } catch {
+        resolve({ ok: false, output: null, error: stderr || "Parse error", durationMs: 0 })
+      }
+    })
+
+    child.stdin.write((nodeJson || "") + "\n")
     child.stdin.end()
   })
 })

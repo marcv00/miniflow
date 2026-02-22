@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { addEdge, useNodesState, useEdgesState, MarkerType, type Connection } from "reactflow";
 import { makeNode, emptyWorkflow, seedWorkflow1 } from "../models/workflow/WorkflowFactory";
 import { validate } from "../models/workflow/WorkflowValidator";
+import { serializeWorkflow, deserializeWorkflow } from "../models/workflow/WorkflowSerializer";
 import { useWorkflowStorage } from "./useWorkflowStorage";
 import { useWorkflowIO } from "./useWorkflowIO";
 import type { FlowNode, Workflow, NodeType, ValidationReport } from "../models/workflow/types";
@@ -28,6 +29,7 @@ export function useWorkflowViewModel(initialId?: string) {
   const [runStdout, setRunStdout] = useState("");
   const [runStderr, setRunStderr] = useState("");
   const [runExitCode, setRunExitCode] = useState<number | null>(null);
+  const [runResult, setRunResult] = useState<any>(null);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const { exportJson, exportJava } = useWorkflowIO(persist);
@@ -120,13 +122,17 @@ export function useWorkflowViewModel(initialId?: string) {
       setRunStdout("");
       setRunStderr("");
       setRunExitCode(null);
+      setRunResult(null);
 
       try {
-        const res = await window.electronAPI.runWorkflow(JSON.stringify(data));
+        const res = await window.electronAPI.runWorkflow(JSON.stringify({ name: data.name, ...serializeWorkflow(data) }));
         setRunExitCode(res.exitCode ?? null);
         setRunStdout(res.stdout || "");
         setRunStderr(res.stderr || "");
-        setRunStatus(res.ok ? "success" : "error");
+        setRunResult(res.run);
+        // Use run.status from Java engine — exitCode 0 doesn't mean all nodes succeeded
+        const hasErrors = res.run?.status === "FINISHED_WITH_ERRORS" || res.run?.status === "FAILED";
+        setRunStatus(!res.ok || hasErrors ? "error" : "success");
       } catch (e: any) {
         setRunStderr(String(e?.message || e || "Error"));
         setRunStatus("error");
@@ -172,7 +178,7 @@ export function useWorkflowViewModel(initialId?: string) {
   };
 
   return {
-    state: { workflows, currentId, nodes, edges, name, description, validationReport, selectedNode, editingNode, editingNodeId, runStatus, runStdout, runStderr, runExitCode, lastSavedAt },
+    state: { workflows, currentId, nodes, edges, name, description, validationReport, selectedNode, editingNode, editingNodeId, runStatus, runStdout, runStderr, runExitCode, runResult, lastSavedAt },
     handlers: {
       ...actions,
       setName,
@@ -196,7 +202,10 @@ export function useWorkflowViewModel(initialId?: string) {
         persist(data);
         exportJava(data);
       },
-      importWorkflow: (wf: any) => persist({ ...wf, id: wf.id || crypto.randomUUID() })
+      importWorkflow: (raw: any) => {
+        const wf = deserializeWorkflow(raw, raw.id);
+        persist(wf);
+      }
     }
   };
 }
