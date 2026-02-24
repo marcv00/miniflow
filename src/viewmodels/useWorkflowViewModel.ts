@@ -1,95 +1,128 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { addEdge, useNodesState, useEdgesState, MarkerType, type Connection } from "reactflow";
+import {
+  useNodesState,
+  useEdgesState,
+  type Connection,
+  type NodeMouseHandler,
+} from "reactflow";
 import { makeNode, emptyWorkflow, seedWorkflow1 } from "../models/workflow/WorkflowFactory";
 import { validate } from "../models/workflow/WorkflowValidator";
-import { deserializeWorkflow } from "../models/workflow/WorkflowSerializer";
 import { useWorkflowStorage } from "./useWorkflowStorage";
 import { useWorkflowIO } from "./useWorkflowIO";
-import type { FlowNode, Workflow, NodeType, ValidationReport } from "../models/workflow/types";
+import type { FlowNode, Workflow, NodeType, NodeData } from "../models/workflow/types";
+import { buildEnginePayload } from "./helpers/buildEnginePayload";
+import { deserializeWorkflow } from "../models/workflow/WorkflowSerializer";
+import type { PortableWorkflow } from "../models/workflow/WorkflowSerializer";
+import { useWorkflowUIState } from "./helpers/useWorkflowUIState";
+import { useRunState, type EngineApiResponse } from "./helpers/useRunState";
+import { type NodePatch, mergeConfig } from "./helpers/nodePatch";
+import { addStyledEdge } from "./helpers/edgeFactory";
 
 export function useWorkflowViewModel(initialId?: string) {
   const { workflows, currentId, setCurrentId, persist, remove } = useWorkflowStorage();
-
   useEffect(() => {
     if (initialId && initialId !== currentId) {
       setCurrentId(initialId);
     }
-  }, [initialId]);
+  }, [initialId, currentId, setCurrentId]);
 
-  const current = useMemo(() => workflows.find(w => w.id === currentId) ?? null, [workflows, currentId]);
-
-  const [nodes, setNodes, onNodesChange] = useNodesState(current?.nodes ?? []);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(current?.edges ?? []);
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
-  const [name, setName] = useState(current?.name ?? "WORKFLOW");
-  const [description, setDescription] = useState(current?.description ?? "");
-  const [validationReport, setValidationReport] = useState<ValidationReport | null>(null);
-  const [runStatus, setRunStatus] = useState<"idle" | "running" | "success" | "error">("idle");
-  const [runStdout, setRunStdout] = useState("");
-  const [runStderr, setRunStderr] = useState("");
-  const [runExitCode, setRunExitCode] = useState<number | null>(null);
-  const [runResult, setRunResult] = useState<any>(null);
+  const current = useMemo(
+    () => workflows.find((w) => w.id === currentId) ?? null,
+    [workflows, currentId]
+  );
+  // Tipado para evitar casts
+  const [nodes, setNodes, onNodesChange] = useNodesState<NodeData>(current?.nodes ?? []);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(current?.edges ?? []); 
+  const flowNodes = useMemo(() => nodes as FlowNode[], [nodes]);
+  const ui = useWorkflowUIState(current?.name, current?.description);
+  const { syncFromWorkflow, setEditingNodeId, setSelectedNodeId } = ui; 
+  const { name, description, selectedNodeId, editingNodeId, validationReport } = ui;
+  const run = useRunState();
+  const { setRunStatus } = run;
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
-
   const { exportJson, exportJava } = useWorkflowIO(persist);
-
+  
   useEffect(() => {
-    if (!current) return;
-    setName(current.name);
-    setDescription(current.description);
-    setNodes(current.nodes);
-    setEdges(current.edges);
-    setValidationReport(null);
-    setSelectedNodeId(null);
-    setEditingNodeId(null);
-    setRunStatus("idle");
-    setRunStdout("");
-    setRunStderr("");
-    setRunExitCode(null);
-  }, [current, setNodes, setEdges]);
+  if (!current) return;
+  syncFromWorkflow(current.name, current.description);
+  setNodes(current.nodes);
+  setEdges(current.edges);
+  setRunStatus("idle");
+}, [current, setNodes, setEdges, setRunStatus, syncFromWorkflow]);
 
-  const selectedNode = useMemo(() => nodes.find(n => n.id === selectedNodeId) || null, [nodes, selectedNodeId]);
-  const editingNode = useMemo(() => nodes.find(n => n.id === editingNodeId) || null, [nodes, editingNodeId]);
+  const selectedNode = useMemo(
+    () => nodes.find((n) => n.id === selectedNodeId) || null,
+    [nodes, selectedNodeId]
+  );
+  const editingNode = useMemo(
+    () => nodes.find((n) => n.id === editingNodeId) || null,
+    [nodes, editingNodeId]
+  );
 
-  const getCurrentWorkflowData = (): Workflow => ({
-    id: currentId ?? crypto.randomUUID(),
-    name: name.trim() || "WORKFLOW",
-    description,
-    nodes: nodes as FlowNode[],
-    edges
-  });
+  const getCurrentWorkflowData = useCallback((): Workflow => ({
+  id: currentId ?? crypto.randomUUID(),
+  name: name.trim() || "WORKFLOW",
+  description,
+  nodes: flowNodes,
+  edges
+}), [currentId, name, description, flowNodes, edges]);
 
-  const updateNodeById = useCallback((nodeId: string, patch: { label?: string; config?: any }) => {
-    setNodes(nds => nds.map(n => {
-      if (n.id !== nodeId) return n;
-      const nextLabel = patch.label !== undefined ? patch.label : n.data.label;
-      const nextConfig = patch.config !== undefined
-        ? { ...(n.data as any).config, ...patch.config }
-        : (n.data as any).config;
-      return { ...n, data: { ...n.data, label: nextLabel, config: nextConfig } };
-    }));
-  }, [setNodes]);
+  const updateNodeById = useCallback(
+  (nodeId: string, patch: NodePatch) => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== nodeId) return n;
 
-  const duplicateNode = useCallback((nodeId: string) => {
-    const source = nodes.find(n => n.id === nodeId);
-    if (!source) return;
-    // Block duplicating START
-    if (source.type === "start" && nodes.some(n => n.type === "start")) return;
-    const newNode = makeNode(source.type as NodeType, {
-      x: source.position.x + 50,
-      y: source.position.y + 50
-    });
-    newNode.data = JSON.parse(JSON.stringify(source.data));
-    setNodes(nds => nds.concat(newNode));
-  }, [nodes, setNodes]);
+        const nextLabel = patch.label ?? n.data.label;
 
-  const deleteNode = useCallback((nodeId: string) => {
-    setNodes(nds => nds.filter(n => n.id !== nodeId));
-    setEdges(eds => eds.filter(e => e.source !== nodeId && e.target !== nodeId));
-    if (editingNodeId === nodeId) setEditingNodeId(null);
-    if (selectedNodeId === nodeId) setSelectedNodeId(null);
-  }, [setNodes, setEdges, editingNodeId, selectedNodeId]);
+        const prevConfig = n.data.config;
+        const nextConfig = patch.config
+          ? mergeConfig(prevConfig, patch.config)
+          : prevConfig;
+
+        return {
+          ...n,
+          data: { ...n.data, label: nextLabel, config: nextConfig }
+        };
+      })
+    );
+  },
+  [setNodes]
+);
+
+  const duplicateNode = useCallback(
+    (nodeId: string) => {
+      const source = nodes.find((n) => n.id === nodeId);
+      if (!source) return;
+      if (source.type === "start" && nodes.some((n) => n.type === "start")) return;
+
+      const newNode = makeNode(source.type as NodeType, {
+        x: source.position.x + 50,
+        y: source.position.y + 50
+      });
+      const clone = (x: unknown) =>
+        typeof structuredClone === "function"
+          ? structuredClone(x)
+          : JSON.parse(JSON.stringify(x));
+
+      newNode.data = clone(source.data) as FlowNode["data"];
+      setNodes((nds) => nds.concat(newNode));
+    },
+    [nodes, setNodes]
+  );
+
+  const deleteNode = useCallback(
+      (nodeId: string) => {
+        setNodes((nds) => nds.filter((n) => n.id !== nodeId));
+        setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+        if (editingNodeId === nodeId) setEditingNodeId(null);
+        if (selectedNodeId === nodeId) setSelectedNodeId(null);
+      },
+      [setNodes, setEdges, editingNodeId, selectedNodeId, setEditingNodeId, setSelectedNodeId] // 👈
+    );
+
+  const onNodeClick: NodeMouseHandler = (_, node) => ui.setSelectedNodeId(node.id);
+  const onNodeDoubleClick: NodeMouseHandler = (_, node) => ui.setEditingNodeId(node.id);
 
   const actions = {
     saveCurrent: () => {
@@ -100,92 +133,48 @@ export function useWorkflowViewModel(initialId?: string) {
       if (currentId) remove(currentId);
     },
     validateNow: () => {
-      const report = validate(nodes as FlowNode[], edges);
-      setValidationReport(report);
+      const report = validate(flowNodes, edges)
+      ui.setValidationReport(report);
     },
     closeValidation: () => {
-      setValidationReport(null);
+      ui.setValidationReport(null);
     },
     executeNow: async () => {
-      const data = getCurrentWorkflowData();
-      persist(data);
-      setLastSavedAt(new Date());
+    const data = getCurrentWorkflowData();
 
-      const report = validate(nodes as FlowNode[], edges);
-      setValidationReport(report);
+  // 1) Persistencia
+  persist(data);
+  setLastSavedAt(new Date());
 
-      if (!report.isValid) {
-        return;
-      }
+  // 2) Validación
+  const report = validate(flowNodes, edges);
+  ui.setValidationReport(report);
+  if (!report.isValid) return;
 
-      setRunStatus("running");
-      setRunStdout("");
-      setRunStderr("");
-      setRunExitCode(null);
-      setRunResult(null);
+  // 3) Reset estado de ejecución
+  run.reset();
 
-      try {
-        // Enviamos formato ReactFlow directo: Node.java espera data: { label, config }
-        const enginePayload = {
-          name: data.name,
-          nodes: (data.nodes as FlowNode[]).map(n => ({
-            id: n.id,
-            type: (n.type || "start").toUpperCase(),
-            data: { label: n.data?.label || "", config: n.data?.config || {} },
-            position: n.position
-          })),
-          edges: data.edges.map(e => ({
-            source: e.source,
-            target: e.target,
-            ...(e.sourceHandle ? { sourceHandle: e.sourceHandle } : {}),
-            ...(e.label ? { label: String(e.label) } : {})
-          }))
-        };
-        const res = await window.electronAPI.runWorkflow(JSON.stringify(enginePayload));
-        setRunExitCode(res.exitCode ?? null);
-        setRunStdout(res.stdout || "");
-        setRunStderr(res.stderr || "");
-        setRunResult(res.run);
-        // Use run.status from Java engine — exitCode 0 doesn't mean all nodes succeeded
-        const hasErrors = res.run?.status === "FINISHED_WITH_ERRORS" || res.run?.status === "FAILED";
-        setRunStatus(!res.ok || hasErrors ? "error" : "success");
-      } catch (e: any) {
-        setRunStderr(String(e?.message || e || "Error"));
-        setRunStatus("error");
-      }
-    },
+  // 4) Ejecutar engine
+  try {
+    const enginePayload = buildEnginePayload(data);
+    const res = (await window.electronAPI.runWorkflow(
+      JSON.stringify(enginePayload)
+    )) as EngineApiResponse;
+
+    run.apply(res);
+  } catch (e: unknown) {
+  run.setRunStderr(e instanceof Error ? e.message : String(e));
+  run.setRunStatus("error");
+  }
+},
     addNode: (type: NodeType, position?: { x: number; y: number }) => {
-      // START unique guard
-      if (type === "start" && nodes.some(n => n.type === "start")) return;
+      if (type === "start" && nodes.some((n) => n.type === "start")) return;
       const bump = (nodes?.length || 0) * 30;
       const pos = position ?? { x: 260 + bump, y: 220 + bump };
-      setNodes(nds => nds.concat(makeNode(type, pos)));
+      setNodes((nds) => nds.concat(makeNode(type, pos)));
     },
-    onConnect: (params: Connection) =>
-      setEdges(eds => {
-        const isTrue = params.sourceHandle === "true";
-        const isFalse = params.sourceHandle === "false";
-        const label = isTrue ? "TRUE" : isFalse ? "FALSE" : undefined;
-        const edgeColor = isTrue ? "#28b478" : isFalse ? "#d23750" : undefined;
-
-        const next: any = {
-          ...params,
-          id: crypto.randomUUID(),
-          type: "smoothstep",
-          label,
-          ...(edgeColor && {
-            style: { stroke: edgeColor, strokeWidth: 2 },
-            markerEnd: { type: MarkerType.ArrowClosed, color: edgeColor, width: 15, height: 12 },
-            labelStyle: { fill: edgeColor, fontWeight: 700, fontSize: 11 },
-            labelBgStyle: { fill: "rgba(14, 20, 36, 0.85)", stroke: edgeColor, strokeWidth: 1 },
-            labelBgPadding: [6, 4] as [number, number],
-            labelBgBorderRadius: 6
-          })
-        };
-
-        return addEdge(next, eds);
-      }),
-    updateSelectedNode: (patch: { label?: string; config?: any }) => {
+    onConnect: (params: Connection) => setEdges((eds) => addStyledEdge(params, eds)),
+    updateSelectedNode: (patch: NodePatch) => {
       if (selectedNodeId) updateNodeById(selectedNodeId, patch);
     },
     updateNodeById,
@@ -194,18 +183,35 @@ export function useWorkflowViewModel(initialId?: string) {
   };
 
   return {
-    state: { workflows, currentId, nodes, edges, name, description, validationReport, selectedNode, editingNode, editingNodeId, runStatus, runStdout, runStderr, runExitCode, runResult, lastSavedAt },
+    state: {
+      workflows,
+      currentId,
+      nodes,
+      edges,
+      name,
+      description,
+      validationReport,
+      selectedNode,
+      editingNode,
+      editingNodeId,
+      runStatus: run.runStatus,
+      runStdout: run.runStdout,
+      runStderr: run.runStderr,
+      runExitCode: run.runExitCode,
+      runResult: run.runResult,
+      lastSavedAt
+    },
     handlers: {
       ...actions,
-      setName,
-      setDescription,
+      setName: ui.setName,
+      setDescription: ui.setDescription,
       setCurrentId,
       setNodes,
       onNodesChange,
       onEdgesChange,
-      setEditingNodeId,
-      onNodeClick: (_: any, node: any) => setSelectedNodeId(node.id),
-      onNodeDoubleClick: (_: any, node: any) => setEditingNodeId(node.id),
+      setEditingNodeId: ui.setEditingNodeId,
+      onNodeClick,
+      onNodeDoubleClick,
       createNewWorkflow: () => persist(emptyWorkflow()),
       createWorkflow1: () => persist(seedWorkflow1()),
       exportJson: () => {
@@ -218,10 +224,10 @@ export function useWorkflowViewModel(initialId?: string) {
         persist(data);
         exportJava(data);
       },
-      importWorkflow: (raw: any) => {
-        const wf = deserializeWorkflow(raw, raw.id);
-        persist(wf);
-      }
+      importWorkflow: (raw: unknown) => {
+      const wf = deserializeWorkflow(raw as PortableWorkflow, undefined);
+      persist(wf);
+      },
     }
   };
 }

@@ -1,11 +1,11 @@
 import { useNavigate, Link } from "react-router-dom";
-import { useState, useEffect, useRef } from "react";
+import { useState,  useRef } from "react";
 import { MoreVertical, Pencil, Trash2, Plus, Zap, ArrowLeftRight, Clock, Package, AlertTriangle } from "lucide-react";
 import { loadAll, saveAll } from "../../models/storage/LocalStorage";
 import { emptyWorkflow } from "../../models/workflow/WorkflowFactory";
 import type { Workflow } from "../../models/workflow/types";
 import styles from "./Dashboard.module.css";
-
+import { useCloseOnOutsideClick } from "../../viewmodels/helpers/useCloseOnOutsideClick";
 function formatDate(iso?: string) {
     if (!iso) return "Nunca ejecutado";
     const d = new Date(iso);
@@ -24,14 +24,7 @@ function KebabMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => v
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
-    useEffect(() => {
-        if (!open) return;
-        const close = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-        };
-        document.addEventListener("mousedown", close);
-        return () => document.removeEventListener("mousedown", close);
-    }, [open]);
+    useCloseOnOutsideClick(ref, open, () => setOpen(false));
 
     return (
         <div className={styles.menuWrap} ref={ref}>

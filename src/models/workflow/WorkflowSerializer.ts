@@ -28,8 +28,10 @@ export interface PortableEdge {
 }
 
 export interface PortableWorkflow {
-    nodes: PortableNode[]
-    edges: PortableEdge[]
+  name?: string
+  description?: string
+  nodes: PortableNode[]
+  edges: PortableEdge[]
 }
 
 /* ─────────────── Serialize (ReactFlow → Portable) ─────────────── */
@@ -105,7 +107,7 @@ export function deserializeWorkflow(raw: PortableWorkflow, id?: string): Workflo
             position,
             data: {
                 label: pn.label || pn.type || "Nodo",
-                config: (pn.config || {}) as any
+                config: (pn.config || {}) as Record<string, unknown>
             }
         } as FlowNode
     })
@@ -121,8 +123,8 @@ export function deserializeWorkflow(raw: PortableWorkflow, id?: string): Workflo
 
     return {
         id: id || uid(),
-        name: (raw as any).name || "WORKFLOW",
-        description: (raw as any).description || "",
+        name: raw.name || "WORKFLOW",
+        description: raw.description || "",
         nodes,
         edges
     }

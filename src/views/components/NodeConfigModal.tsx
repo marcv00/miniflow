@@ -1,12 +1,18 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ComponentType } from "react";
 import {
     Zap, Globe, GitBranch, Terminal, Flag,
     X, FlaskConical
 } from "lucide-react";
 import { CustomSelect } from "./CustomSelect";
 import styles from "./NodeConfigModal.module.css";
-
-const TYPE_META: Record<string, { icon: any; color: string; label: string }> = {
+import type { NodeConfig, NodeData } from "../../models/workflow/types";
+import type { NodePatch } from "../../viewmodels/helpers/nodePatch";
+import type { Node } from "reactflow";
+const TYPE_META: Record<string, {
+    icon: ComponentType<{ size: number; color?: string; strokeWidth?: number }>;
+    color: string;
+    label: string
+}> = {
     start: { icon: Zap, color: "#28b478", label: "START" },
     http_request: { icon: Globe, color: "#78b4ff", label: "HTTP_REQUEST" },
     conditional: { icon: GitBranch, color: "#f5a623", label: "CONDITIONAL" },
@@ -15,10 +21,23 @@ const TYPE_META: Record<string, { icon: any; color: string; label: string }> = {
 };
 
 interface Props {
-    node: any;
-    onSave: (nodeId: string, patch: { label?: string; config?: any }) => void;
+    node: Node<NodeData>;  
+    onSave: (nodeId: string, patch: NodePatch) => void;
     onClose: () => void;
 }
+
+// Helper para leer valores del config de forma segura
+const str = (v: unknown, fallback = ""): string =>
+    typeof v === "string" ? v : fallback;
+const num = (v: unknown, fallback: number): number =>
+    typeof v === "number" ? v : fallback;
+const mapField = (map: unknown, key: string): string => {
+    if (typeof map === "object" && map !== null) {
+        const val = (map as Record<string, unknown>)[key];
+        return typeof val === "string" ? val : "";
+    }
+    return "";
+};
 
 export function NodeConfigModal({ node, onSave, onClose }: Props) {
     const type = node?.type || "start";
@@ -26,15 +45,10 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
     const Icon = meta.icon;
 
     const [label, setLabel] = useState(node?.data?.label || "");
-    const [config, setConfig] = useState<any>({ ...(node?.data?.config || {}) });
+    const [config, setConfig] = useState<Record<string, unknown>>({ ...(node?.data?.config || {}) });
     const [testResult, setTestResult] = useState<string | null>(null);
 
-    useEffect(() => {
-        if (!node) return;
-        setLabel(node.data?.label || "");
-        setConfig({ ...(node.data?.config || {}) });
-        setTestResult(null);
-    }, [node]);
+    
 
     const handleEscape = useCallback((e: KeyboardEvent) => {
         if (e.key === "Escape") onClose();
@@ -47,12 +61,14 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
 
     if (!node) return null;
 
-    const patchConfig = (key: string, value: any) => setConfig((c: any) => ({ ...c, [key]: value }));
+    const patchConfig = (key: string, value: unknown) =>
+        setConfig((c) => ({ ...c, [key]: value }));
+
     const patchMap = (key: string, value: string) =>
-        setConfig((c: any) => ({ ...c, map: { ...(c.map || {}), [key]: value } }));
+        setConfig((c) => ({ ...c, map: { ...((c.map as Record<string, string>) || {}), [key]: value } }));
 
     const handleSave = () => {
-        onSave(node.id, { label, config });
+        onSave(node.id, { label, config: config as NodeConfig });
         onClose();
     };
 
@@ -85,7 +101,6 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
 
                 {/* ── Body ── */}
                 <div className={styles.body}>
-                    {/* Label — always */}
                     <div className={styles.field}>
                         <label>Etiqueta</label>
                         <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Nombre del nodo" />
@@ -114,7 +129,7 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 <div className={styles.field}>
                                     <label>Método</label>
                                     <CustomSelect
-                                        value={config.method || "GET"}
+                                        value={str(config.method, "GET")}
                                         onChange={v => patchConfig("method", v)}
                                         options={[
                                             { value: "GET", label: "GET" },
@@ -127,51 +142,50 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 </div>
                                 <div className={styles.field} style={{ flex: 2 }}>
                                     <label>URL</label>
-                                    <input value={config.url || ""} onChange={e => patchConfig("url", e.target.value)} placeholder="https://api.ejemplo.com/v1/recurso" />
+                                    <input value={str(config.url)} onChange={e => patchConfig("url", e.target.value)} placeholder="https://api.ejemplo.com/v1/recurso" />
                                 </div>
                             </div>
 
                             <div className={styles.field}>
                                 <label>Headers (JSON)</label>
-                                <textarea value={config.headers || ""} onChange={e => patchConfig("headers", e.target.value)} placeholder={'{"Authorization": "Bearer token"}'} rows={2} />
+                                <textarea value={str(config.headers)} onChange={e => patchConfig("headers", e.target.value)} placeholder={'{"Authorization": "Bearer token"}'} rows={2} />
                             </div>
 
                             <div className={styles.field}>
                                 <label>Query Parameters (JSON)</label>
-                                <textarea value={config.queryParams || ""} onChange={e => patchConfig("queryParams", e.target.value)} placeholder={'{"page": "1", "limit": "10"}'} rows={2} />
+                                <textarea value={str(config.queryParams)} onChange={e => patchConfig("queryParams", e.target.value)} placeholder={'{"page": "1", "limit": "10"}'} rows={2} />
                             </div>
 
-                            {(config.method || "GET") !== "GET" && (
+                            {str(config.method, "GET") !== "GET" && (
                                 <div className={styles.field}>
                                     <label>Body (JSON)</label>
-                                    <textarea value={config.body || ""} onChange={e => patchConfig("body", e.target.value)} placeholder={'{"key": "value"}'} rows={3} />
+                                    <textarea value={str(config.body)} onChange={e => patchConfig("body", e.target.value)} placeholder={'{"key": "value"}'} rows={3} />
                                 </div>
                             )}
 
+                            <div className={styles.sectionLabel}>Timeout y reintentos</div>
                             <div className={styles.row2}>
                                 <div className={styles.field}>
                                     <label>Timeout (ms)</label>
-                                    <input type="number" value={config.timeoutMs ?? 5000} onChange={e => patchConfig("timeoutMs", Number(e.target.value))} />
+                                    <input type="number" value={num(config.timeoutMs, 5000)} onChange={e => patchConfig("timeoutMs", Number(e.target.value))} />
                                 </div>
                                 <div className={styles.field}>
                                     <label>Reintentos</label>
-                                    <input type="number" value={config.retries ?? 0} onChange={e => patchConfig("retries", Number(e.target.value))} />
+                                    <input type="number" value={num(config.retries, 3)} onChange={e => patchConfig("retries", Number(e.target.value))} />
                                 </div>
                             </div>
 
-                            <div className={styles.sectionLabel}>Mapeo de Respuesta</div>
-
+                            <div className={styles.sectionLabel}>Mapeo de respuesta</div>
                             <div className={styles.row2}>
                                 <div className={styles.field}>
                                     <label>Mapeo status (JSONPath)</label>
-                                    <input value={config.map?.status || ""} onChange={e => patchMap("status", e.target.value)} placeholder="$.statusCode" />
+                                    <input value={mapField(config.map, "status")} onChange={e => patchMap("status", e.target.value)} placeholder="$.statusCode" />
                                 </div>
                                 <div className={styles.field}>
                                     <label>Mapeo payload (JSONPath)</label>
-                                    <input value={config.map?.payload || ""} onChange={e => patchMap("payload", e.target.value)} placeholder="$.data" />
+                                    <input value={mapField(config.map, "payload")} onChange={e => patchMap("payload", e.target.value)} placeholder="$.data" />
                                 </div>
                             </div>
-
                         </>
                     )}
 
@@ -183,32 +197,32 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                             <div className={styles.row2}>
                                 <div className={styles.field}>
                                     <label>Comando</label>
-                                    <input value={config.command || ""} onChange={e => patchConfig("command", e.target.value)} placeholder="python" />
+                                    <input value={str(config.command)} onChange={e => patchConfig("command", e.target.value)} placeholder="python" />
                                 </div>
                                 <div className={styles.field}>
                                     <label>Ruta de script</label>
-                                    <input value={config.scriptPath || ""} onChange={e => patchConfig("scriptPath", e.target.value)} placeholder="C:\Users\...\script.py" />
+                                    <input value={str(config.scriptPath)} onChange={e => patchConfig("scriptPath", e.target.value)} placeholder="C:\Users\...\script.py" />
                                 </div>
                             </div>
 
                             <div className={styles.field}>
                                 <label>Argumentos</label>
-                                <input value={config.args || ""} onChange={e => patchConfig("args", e.target.value)} placeholder="--verbose --output result.json" />
+                                <input value={str(config.args)} onChange={e => patchConfig("args", e.target.value)} placeholder="--verbose --output result.json" />
                             </div>
 
                             <div className={styles.field}>
                                 <label>Variables de entorno (JSON, opcional)</label>
-                                <textarea value={config.envVars || ""} onChange={e => patchConfig("envVars", e.target.value)} placeholder={'{"API_KEY": "xxx"}'} rows={2} />
+                                <textarea value={str(config.envVars)} onChange={e => patchConfig("envVars", e.target.value)} placeholder={'{"API_KEY": "xxx"}'} rows={2} />
                             </div>
 
                             <div className={styles.row2}>
                                 <div className={styles.field}>
                                     <label>Directorio de ejecución</label>
-                                    <input value={config.cwd || ""} onChange={e => patchConfig("cwd", e.target.value)} placeholder="C:\proyecto\" />
+                                    <input value={str(config.cwd)} onChange={e => patchConfig("cwd", e.target.value)} placeholder="C:\proyecto\" />
                                 </div>
                                 <div className={styles.field}>
                                     <label>Timeout (ms)</label>
-                                    <input type="number" value={config.timeoutMs ?? 30000} onChange={e => patchConfig("timeoutMs", Number(e.target.value))} />
+                                    <input type="number" value={num(config.timeoutMs, 30000)} onChange={e => patchConfig("timeoutMs", Number(e.target.value))} />
                                 </div>
                             </div>
 
@@ -216,7 +230,7 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 <div className={styles.field}>
                                     <label>Captura de salida</label>
                                     <CustomSelect
-                                        value={config.captureOutput || "stdout"}
+                                        value={str(config.captureOutput, "stdout")}
                                         onChange={v => patchConfig("captureOutput", v)}
                                         options={[
                                             { value: "stdout", label: "stdout" },
@@ -227,10 +241,9 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 </div>
                                 <div className={styles.field}>
                                     <label>Output key (contexto)</label>
-                                    <input value={config.outputKey || ""} onChange={e => patchConfig("outputKey", e.target.value)} placeholder="commandResult" />
+                                    <input value={str(config.outputKey)} onChange={e => patchConfig("outputKey", e.target.value)} placeholder="commandResult" />
                                 </div>
                             </div>
-
                         </>
                     )}
 
@@ -242,12 +255,12 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                             <div className={styles.conditionRow}>
                                 <div className={styles.field} style={{ flex: 2 }}>
                                     <label>Operando izquierdo</label>
-                                    <input value={config.leftOperand || ""} onChange={e => patchConfig("leftOperand", e.target.value)} placeholder="{{response.status}}" />
+                                    <input value={str(config.leftOperand)} onChange={e => patchConfig("leftOperand", e.target.value)} placeholder="{{response.status}}" />
                                 </div>
                                 <div className={styles.field} style={{ flex: 1 }}>
                                     <label>Operador</label>
                                     <CustomSelect
-                                        value={config.operator || "=="}
+                                        value={str(config.operator, "==")}
                                         onChange={v => patchConfig("operator", v)}
                                         options={[
                                             { value: "==", label: "==" },
@@ -262,20 +275,20 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                                 </div>
                                 <div className={styles.field} style={{ flex: 2 }}>
                                     <label>Operando derecho</label>
-                                    <input value={config.rightOperand || ""} onChange={e => patchConfig("rightOperand", e.target.value)} placeholder="200" />
+                                    <input value={str(config.rightOperand)} onChange={e => patchConfig("rightOperand", e.target.value)} placeholder="200" />
                                 </div>
                             </div>
 
                             {(config.leftOperand || config.rightOperand) && (
                                 <div className={styles.conditionPreview}>
                                     <span className={styles.previewLabel}>Preview:</span>
-                                    <code>{config.leftOperand || "?"} {config.operator || "=="} {config.rightOperand || "?"}</code>
+                                    <code>{str(config.leftOperand, "?")} {str(config.operator, "==")} {str(config.rightOperand, "?")}</code>
                                 </div>
                             )}
 
                             <div className={styles.field}>
                                 <label>Expresión completa (alternativo)</label>
-                                <input value={config.condition || ""} onChange={e => patchConfig("condition", e.target.value)} placeholder="context.status == 200" />
+                                <input value={str(config.condition)} onChange={e => patchConfig("condition", e.target.value)} placeholder="context.status == 200" />
                             </div>
 
                             <div className={styles.infoBox}>
@@ -286,7 +299,7 @@ export function NodeConfigModal({ node, onSave, onClose }: Props) {
                             <div className={styles.field}>
                                 <label>Política de error</label>
                                 <CustomSelect
-                                    value={config.errorPolicy || "STOP_ON_FAIL"}
+                                    value={str(config.errorPolicy, "STOP_ON_FAIL")}
                                     onChange={v => patchConfig("errorPolicy", v)}
                                     options={[
                                         { value: "STOP_ON_FAIL", label: "STOP_ON_FAIL" },

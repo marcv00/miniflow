@@ -1,7 +1,18 @@
 import styles from "./NodeConfigPanel.module.css";
+import type { NodePatch } from "../../viewmodels/helpers/nodePatch";
+import type { FlowNode, HttpRequestConfig, CommandConfig, ConditionalConfig } from "../../models/workflow/types";
 
-export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
+interface Props {
+  selectedNode: FlowNode | null;
+  updateSelectedNode: (patch: NodePatch) => void;
+}
+
+export function NodeConfigPanel({ selectedNode, updateSelectedNode }: Props) {
   const t = selectedNode?.type;
+  const cfg = selectedNode?.data?.config;
+  const httpCfg = cfg as HttpRequestConfig | undefined;
+  const cmdCfg = cfg as CommandConfig | undefined;
+  const condCfg = cfg as ConditionalConfig | undefined;
 
   return (
     <div className={styles.panel}>
@@ -35,10 +46,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>Método</label>
                 <select
-                  value={selectedNode.data?.config?.method || "GET"}
+                  value={httpCfg?.method || "GET"}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, method: e.target.value },
+                      config: { ...cfg, method: e.target.value },
                     })
                   }
                 >
@@ -53,10 +64,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>URL</label>
                 <input
-                  value={selectedNode.data?.config?.url || ""}
+                  value={httpCfg?.url || ""}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, url: e.target.value },
+                      config: { ...cfg, url: e.target.value },
                     })
                   }
                 />
@@ -66,10 +77,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
                 <label>Timeout (ms)</label>
                 <input
                   type="number"
-                  value={selectedNode.data?.config?.timeoutMs ?? 5000}
+                  value={httpCfg?.timeoutMs ?? 5000}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, timeoutMs: Number(e.target.value) },
+                      config: { ...cfg, timeoutMs: Number(e.target.value) },
                     })
                   }
                 />
@@ -79,10 +90,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
                 <label>Reintentos</label>
                 <input
                   type="number"
-                  value={selectedNode.data?.config?.retries ?? 0}
+                  value={httpCfg?.retries ?? 0}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, retries: Number(e.target.value) },
+                      config: { ...cfg, retries: Number(e.target.value) },
                     })
                   }
                 />
@@ -91,10 +102,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>Política de error</label>
                 <select
-                  value={selectedNode.data?.config?.errorPolicy || "STOP_ON_FAIL"}
+                  value={httpCfg?.errorPolicy || "STOP_ON_FAIL"}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, errorPolicy: e.target.value },
+                      config: { ...cfg, errorPolicy: e.target.value as "STOP_ON_FAIL" | "CONTINUE_ON_FAIL" },
                     })
                   }
                 >
@@ -106,12 +117,12 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>Mapeo status (JSONPath)</label>
                 <input
-                  value={selectedNode.data?.config?.map?.status || ""}
+                  value={httpCfg?.map?.status || ""}
                   onChange={(e) =>
                     updateSelectedNode({
                       config: {
-                        ...selectedNode.data.config,
-                        map: { ...(selectedNode.data.config?.map || {}), status: e.target.value },
+                        ...cfg,
+                        map: { ...(httpCfg?.map || {}), status: e.target.value },
                       },
                     })
                   }
@@ -121,12 +132,12 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>Mapeo payload (JSONPath)</label>
                 <input
-                  value={selectedNode.data?.config?.map?.payload || ""}
+                  value={httpCfg?.map?.payload || ""}
                   onChange={(e) =>
                     updateSelectedNode({
                       config: {
-                        ...selectedNode.data.config,
-                        map: { ...(selectedNode.data.config?.map || {}), payload: e.target.value },
+                        ...cfg,
+                        map: { ...(httpCfg?.map || {}), payload: e.target.value },
                       },
                     })
                   }
@@ -139,10 +150,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
             <div className={styles.field}>
               <label>Condición</label>
               <input
-                value={selectedNode.data?.config?.condition || ""}
+                value={condCfg?.condition || ""}
                 onChange={(e) =>
                   updateSelectedNode({
-                    config: { ...selectedNode.data.config, condition: e.target.value },
+                    config: { ...cfg, condition: e.target.value },
                   })
                 }
               />
@@ -154,23 +165,27 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>Comando</label>
                 <input
-                  value={selectedNode.data?.config?.command || ""}
+                  value={cmdCfg?.command || ""}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, command: e.target.value },
+                      config: { ...cfg, command: e.target.value },
                     })
                   }
                 />
               </div>
 
               <div className={styles.field}>
-                <label>{String(selectedNode.data?.config?.command || "").trim().toLowerCase().startsWith("python") ? "Ruta script local (obligatoria para python)" : "Ruta script local (opcional)"}</label>
+                <label>
+                  {String(cmdCfg?.command || "").trim().toLowerCase().startsWith("python")
+                    ? "Ruta script local (obligatoria para python)"
+                    : "Ruta script local (opcional)"}
+                </label>
                 <input
                   placeholder="C:\\Users\\Harry\\Desktop\\process.py"
-                  value={selectedNode.data?.config?.scriptPath || ""}
+                  value={cmdCfg?.scriptPath || ""}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, scriptPath: e.target.value },
+                      config: { ...cfg, scriptPath: e.target.value },
                     })
                   }
                 />
@@ -179,10 +194,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>Argumentos</label>
                 <input
-                  value={selectedNode.data?.config?.args || ""}
+                  value={cmdCfg?.args || ""}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, args: e.target.value },
+                      config: { ...cfg, args: e.target.value },
                     })
                   }
                 />
@@ -191,10 +206,10 @@ export function NodeConfigPanel({ selectedNode, updateSelectedNode }: any) {
               <div className={styles.field}>
                 <label>Output key (opcional)</label>
                 <input
-                  value={selectedNode.data?.config?.outputKey || ""}
+                  value={cmdCfg?.outputKey || ""}
                   onChange={(e) =>
                     updateSelectedNode({
-                      config: { ...selectedNode.data.config, outputKey: e.target.value },
+                      config: { ...cfg, outputKey: e.target.value },
                     })
                   }
                 />

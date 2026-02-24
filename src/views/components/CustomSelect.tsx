@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown, Check } from "lucide-react";
 import styles from "./CustomSelect.module.css";
-
+import { useCloseOnOutsideClick } from "../../viewmodels/helpers/useCloseOnOutsideClick";
 interface Option {
     value: string;
     label: string;
@@ -19,14 +19,7 @@ export function CustomSelect({ value, options, onChange, placeholder }: Props) {
     const ref = useRef<HTMLDivElement>(null);
 
     /* close on click outside */
-    useEffect(() => {
-        if (!open) return;
-        const handler = (e: MouseEvent) => {
-            if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, [open]);
+    useCloseOnOutsideClick(ref, open, () => setOpen(false));
 
     /* close on Escape */
     useEffect(() => {

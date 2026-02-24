@@ -18,7 +18,13 @@ export const defaultConfigByType: Record<NodeType, Record<string, unknown>> = {
   },
   command: { command: "", scriptPath: "", args: "", outputKey: "" }
 }
-
+const LABEL_BY_TYPE: Record<NodeType, string> = {
+  start: "Inicio",
+  end: "Fin",
+  http_request: "Consultar API",
+  conditional: "Evaluar respuesta",
+  command: "Ejecutar comando"
+}
 export const emptyWorkflow = (): Workflow => ({
   id: uid(),
   name: "WORKFLOW",
@@ -31,16 +37,7 @@ export const makeNode = (
   type: NodeType,
   position: { x: number; y: number }
 ): FlowNode => {
-  const label =
-    type === "start"
-      ? "Inicio"
-      : type === "end"
-        ? "Fin"
-        : type === "http_request"
-          ? "Consultar API"
-          : type === "conditional"
-            ? "Evaluar respuesta"
-            : "Ejecutar comando"
+  const label = LABEL_BY_TYPE[type]
 
   const node: FlowNode = {
     id: uid(),

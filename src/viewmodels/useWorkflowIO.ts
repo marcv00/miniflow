@@ -6,8 +6,7 @@ import type { Workflow } from "../models/workflow/types";
 export function useWorkflowIO(persist: (wf: Workflow) => void) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const exportJson = (wf: Workflow) => exportWorkflowJson(wf);
-  const exportJava = (wf: Workflow) => exportWorkflowJava(wf);
+ 
   
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -16,12 +15,15 @@ export function useWorkflowIO(persist: (wf: Workflow) => void) {
       const text = await file.text();
       const obj = JSON.parse(text);
       if (obj.nodes && obj.edges) {
-        const errs = validate(obj.nodes, obj.edges);
-        if (errs.length) {
-          const msg = ["No se puede importar: el workflow es inválido.", "", ...errs.slice(0, 6)].join("\n");
-          alert(msg);
+        const report = validate(obj.nodes, obj.edges);
+      if (!report.isValid) {
+          const msgs = report.issues
+              .filter(i => i.severity === "error")
+              .slice(0, 6)
+              .map(i => i.message);
+          alert(["No se puede importar: el workflow es inválido.", "", ...msgs].join("\n"));
           return;
-        }
+      }
         persist({ ...obj, id: obj.id || crypto.randomUUID() });
       }
     } catch {
@@ -31,9 +33,9 @@ export function useWorkflowIO(persist: (wf: Workflow) => void) {
   };
 
   return { 
-    fileInputRef, 
-    exportJson, 
-    exportJava, 
+    fileInputRef,
+    exportJson: exportWorkflowJson,
+    exportJava: exportWorkflowJava,
     onImportFile, 
     openImport: () => fileInputRef.current?.click() 
   };

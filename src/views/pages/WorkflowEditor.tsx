@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useMemo, useState } from "react";
+import { useCallback, useRef, useMemo, useState } from "react";
 import ReactFlow, { Background, BackgroundVariant, MarkerType, ReactFlowProvider, useReactFlow } from "reactflow";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
@@ -14,7 +14,8 @@ import { Sidebar } from "../components/Sidebar";
 import { NodeConfigModal } from "../components/NodeConfigModal";
 import { NodeActionsProvider } from "../components/NodeActionsContext";
 import ValidationPanel from "../components/ValidationPanel";
-import type { NodeType } from "../../models/workflow/types";
+import type { NodeType, Workflow } from "../../models/workflow/types";
+import type { EngineStep } from "../../viewmodels/helpers/runState";
 
 import styles from "./WorkflowEditor.module.css";
 
@@ -42,18 +43,7 @@ function EditorInner() {
     const [deleteOpen, setDeleteOpen] = useState(false);
     const [statusExpanded, setStatusExpanded] = useState(false);
 
-    // Auto-hide status pill after 8s on success
-    useEffect(() => {
-        if (state.runStatus === "success") {
-            const timer = setTimeout(() => {
-                // Reset to idle after 8s on success
-            }, 8000);
-            return () => clearTimeout(timer);
-        }
-        if (state.runStatus === "running") {
-            setStatusExpanded(false);
-        }
-    }, [state.runStatus]);
+    
 
     const showToast = useCallback((msg: string) => {
         setToast(msg);
@@ -62,8 +52,14 @@ function EditorInner() {
 
     const copyToClipboard = useCallback(() => {
         handlers.saveCurrent();
-        const data = { id: state.currentId, name: state.name, description: state.description, nodes: state.nodes, edges: state.edges };
-        const portable = serializeWorkflow(data as any);
+        const data: Workflow = {
+            id: state.currentId ?? "",
+            name: state.name,
+            description: state.description,
+            nodes: state.nodes as Workflow["nodes"],
+            edges: state.edges
+        };
+        const portable = serializeWorkflow(data);
         navigator.clipboard.writeText(JSON.stringify(portable, null, 2));
         showToast("El workflow ha sido copiado al portapapeles");
     }, [handlers, state, showToast]);
@@ -89,9 +85,18 @@ function EditorInner() {
         onDelete: (nodeId: string) => handlers.deleteNode(nodeId)
     }), [handlers]);
 
+    const steps = Array.isArray((state.runResult?.steps as unknown)) 
+        ? (state.runResult?.steps as EngineStep[]) 
+        : [];
+
     return (
         <div className={styles.app}>
-            <Sidebar state={state} handlers={handlers} />
+            <Sidebar state={{
+                name: state.name,
+                nodes: state.nodes as Workflow["nodes"],
+                edges: state.edges,
+                validationReport: state.validationReport
+            }} handlers={handlers} />
 
             <div className={styles.main}>
                 <header className={styles.topbar}>
@@ -154,12 +159,11 @@ function EditorInner() {
                             fitView
                             defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed } }}
                         >
-                            <Background variant={BackgroundVariant.Dots} gap={18} size={1} />
+                            <Background variant={BackgroundVariant.Dots} />
                         </ReactFlow>
                     </NodeActionsProvider>
                 </main>
 
-                {/* ── Validation Panel ── */}
                 {state.validationReport && (
                     <ValidationPanel
                         report={state.validationReport}
@@ -173,7 +177,7 @@ function EditorInner() {
                     />
                 )}
 
-                {/* ── Engine Status Pill (always visible) ── */}
+                {/* ── Engine Status Pill ── */}
                 <div className={styles.statusPillWrap}>
                     <button
                         className={`${styles.statusPill} ${styles[`statusPill_${state.runStatus}`]}`}
@@ -201,9 +205,9 @@ function EditorInner() {
 
                     {statusExpanded && state.runStatus !== "running" && state.runStatus !== "idle" && (
                         <div className={styles.statusDetail}>
-                            {state.runResult?.steps?.length > 0 && (
+                            {steps.length > 0 && (
                                 <div className={styles.stepsList}>
-                                    {state.runResult.steps.map((step: any, i: number) => (
+                                    {steps.map((step: EngineStep, i: number) => (
                                         <div key={i} className={`${styles.stepItem} ${step.status === "ERROR" ? styles.stepError : styles.stepOk}`}>
                                             <span className={styles.stepIndex}>{i + 1}</span>
                                             <span className={styles.stepLabel}>{step.nodeLabel || step.nodeId}</span>
@@ -226,6 +230,7 @@ function EditorInner() {
             {/* ── Node Config Modal ── */}
             {state.editingNode && (
                 <NodeConfigModal
+                    key={state.editingNode.id}
                     node={state.editingNode}
                     onSave={handlers.updateNodeById}
                     onClose={() => handlers.setEditingNodeId(null)}

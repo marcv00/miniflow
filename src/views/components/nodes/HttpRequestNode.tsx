@@ -1,24 +1,18 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { Handle, Position, type NodeProps } from "reactflow";
 import { Globe, MoreVertical, Pencil, Copy, Trash2 } from "lucide-react";
 import { useNodeActions } from "../NodeActionsContext";
 import type { NodeData } from "../../../models/workflow/types";
 import base from "./BaseNode.module.css";
+import { useCloseOnOutsideClick } from "../../../viewmodels/helpers/useCloseOnOutsideClick";
 
 export default function HttpRequestNode({ id, data }: NodeProps<NodeData>) {
   const { onEdit, onDuplicate, onDelete } = useNodeActions();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const cfg: any = data.config || {};
+  const cfg = (data.config || {}) as Record<string, unknown>;
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
+  useCloseOnOutsideClick(menuRef, menuOpen, () => setMenuOpen(false));
 
   return (
     <div className={base.nodeBox} style={{ borderLeft: "3px solid #78b4ff" }}>
@@ -41,7 +35,7 @@ export default function HttpRequestNode({ id, data }: NodeProps<NodeData>) {
       </div>
       <div className={base.nodeLabel}>{data.label || "Consultar API"}</div>
       <div className={base.nodeHint}>
-        {cfg.method || "GET"} {cfg.url || ""}
+        {String(cfg.method || "GET")} {String(cfg.url || "")}
       </div>
       <Handle type="target" position={Position.Left} />
       <Handle type="source" position={Position.Right} />

@@ -6,7 +6,7 @@ import {
   ArrowLeft, PanelLeftClose, PanelLeftOpen
 } from "lucide-react";
 import styles from "./Sidebar.module.css";
-import type { NodeType, ValidationReport } from "../../models/workflow/types";
+import type { FlowNode, FlowEdge, NodeType, ValidationReport } from "../../models/workflow/types";
 
 const NODE_PALETTE = [
   { type: "start" as NodeType, label: "Start", icon: Zap, color: "#28b478" },
@@ -19,8 +19,8 @@ const NODE_PALETTE = [
 interface SidebarProps {
   state: {
     name: string;
-    nodes: any[];
-    edges: any[];
+    nodes: FlowNode[];
+    edges: FlowEdge[];
     validationReport?: ValidationReport | null;
   };
   handlers: {
@@ -85,7 +85,7 @@ export function Sidebar({ state, handlers }: SidebarProps) {
           <div className={styles.nodeGrid}>
             {NODE_PALETTE.map(n => {
               const Icon = n.icon;
-              const isStartDisabled = n.type === "start" && state.nodes.some((nd: any) => nd.type === "start");
+              const isStartDisabled = n.type === "start" && state.nodes.some(nd => nd.type === "start");
               return (
                 <button
                   key={n.type}

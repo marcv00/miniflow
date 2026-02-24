@@ -45,94 +45,107 @@ const reachableFrom = (startId: string | null, nodes: FlowNode[], edges: FlowEdg
   return vis
 }
 
-const edgeLabel = (e: any) => {
+const edgeLabel = (e: FlowEdge) => {
   const raw = (e.label || e.sourceHandle || "").toString()
   return raw.trim().toUpperCase()
 }
 
 const nodeLabel = (n: FlowNode) => n.data?.label || n.type?.toUpperCase() || n.id
-
-/* ── main validator ── */
-export const validate = (nodes: FlowNode[], edges: FlowEdge[]): ValidationReport => {
-  const issues: ValidationIssue[] = []
-  const push = (severity: ValidationIssue["severity"], message: string, nodeId?: string, action?: ValidationIssue["action"]) => {
-    issues.push({ severity, message, nodeId, action: action ?? (nodeId ? "focus" : "none") })
-  }
-
-  /* RF-A21 — exactly one START */
+const validateStartNodes = (
+  nodes: FlowNode[],
+  push: (severity: ValidationIssue["severity"], message: string, nodeId?: string, action?: ValidationIssue["action"]) => void
+) => {
   const starts = nodes.filter(n => n.type === "start")
   if (starts.length === 0) {
     push("error", "Debe existir exactamente 1 nodo START.")
   } else if (starts.length > 1) {
-    starts.slice(1).forEach(n => push("error", `Solo puede haber un nodo START (nodo "${nodeLabel(n)}" es duplicado).`, n.id))
+    starts.slice(1).forEach(n =>
+      push("error", `Solo puede haber un nodo START (nodo "${nodeLabel(n)}" es duplicado).`, n.id)
+    )
   }
-
-  /* RF-A22 — no cycles */
-  if (detectCycle(nodes, edges)) {
-    push("error", "No se permiten ciclos en el workflow.")
-  }
-
-  /* RF-A23 — all reachable from START */
-  const startId = starts[0]?.id ?? null
-  const reach = reachableFrom(startId, nodes, edges)
-  nodes.filter(n => startId && !reach[n.id]).forEach(n => {
-    push("warning", `El nodo "${nodeLabel(n)}" no es alcanzable desde START.`, n.id)
-  })
-
-  /* END checks */
+  return starts
+}
+const validateEndNodes = (
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  push: (severity: ValidationIssue["severity"], message: string, nodeId?: string, action?: ValidationIssue["action"]) => void
+) => {
   const ends = nodes.filter(n => n.type === "end")
   if (ends.length !== 1) {
     push("error", "Debe existir exactamente 1 nodo END.")
   }
 
   const endId = ends[0]?.id ?? null
-  if (endId) {
-    const endOut = edges.filter(e => e.source === endId)
-    if (endOut.length) {
-      push("error", "El nodo END no debe tener salidas.", endId)
-    }
+  if (!endId) return null
 
-    /* reverse-reachability to END */
-    const rev: Record<string, string[]> = {}
-    nodes.forEach(n => { rev[n.id] = [] })
-    edges.forEach(e => { if (rev[e.target]) rev[e.target].push(e.source) })
-
-    const canReachEnd: Record<string, boolean> = {}
-    nodes.forEach(n => { canReachEnd[n.id] = false })
-    const q: string[] = [endId]
-    canReachEnd[endId] = true
-    while (q.length) {
-      const u = q.shift()!
-      for (const v of rev[u] || []) {
-        if (!canReachEnd[v]) { canReachEnd[v] = true; q.push(v) }
-      }
-    }
-    nodes.filter(n => !canReachEnd[n.id]).forEach(n => {
-      push("warning", `El nodo "${nodeLabel(n)}" no llega al nodo END.`, n.id)
-    })
-
-    const terminals = nodes.filter(n => edges.filter(e => e.source === n.id).length === 0)
-    terminals.filter(n => n.type !== "end").forEach(n => {
-      push("error", `Solo END puede ser un nodo terminal (sin salidas). Nodo "${nodeLabel(n)}" no tiene salidas.`, n.id)
-    })
+  const endOut = edges.filter(e => e.source === endId)
+  if (endOut.length) {
+    push("error", "El nodo END no debe tener salidas.", endId)
   }
 
-  /* RF-A24 — minimum config per type */
+  return endId
+}
+const validateReachability = (
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  startId: string | null,
+  endId: string | null,
+  push: (severity: ValidationIssue["severity"], message: string, nodeId?: string, action?: ValidationIssue["action"]) => void
+) => {
+  // Reachable desde START
+  const reach = reachableFrom(startId, nodes, edges)
+  nodes.filter(n => startId && !reach[n.id]).forEach(n => {
+    push("warning", `El nodo "${nodeLabel(n)}" no es alcanzable desde START.`, n.id)
+  })
+
+  if (!endId) return
+
+  // Reverse reachability hacia END
+  const rev: Record<string, string[]> = {}
+  nodes.forEach(n => { rev[n.id] = [] })
+  edges.forEach(e => { if (rev[e.target]) rev[e.target].push(e.source) })
+
+  const canReachEnd: Record<string, boolean> = {}
+  nodes.forEach(n => { canReachEnd[n.id] = false })
+  const q: string[] = [endId]
+  canReachEnd[endId] = true
+  while (q.length) {
+    const u = q.shift()!
+    for (const v of rev[u] || []) {
+      if (!canReachEnd[v]) { canReachEnd[v] = true; q.push(v) }
+    }
+  }
+
+  nodes.filter(n => !canReachEnd[n.id]).forEach(n => {
+    push("warning", `El nodo "${nodeLabel(n)}" no llega al nodo END.`, n.id)
+  })
+
+  // Nodos terminales que no son END
+  const terminals = nodes.filter(n => edges.filter(e => e.source === n.id).length === 0)
+  terminals.filter(n => n.type !== "end").forEach(n => {
+    push("error", `Solo END puede ser un nodo terminal (sin salidas). Nodo "${nodeLabel(n)}" no tiene salidas.`, n.id)
+  })
+}
+const validateNodeConfigs = (
+  nodes: FlowNode[],
+  edges: FlowEdge[],
+  push: (severity: ValidationIssue["severity"], message: string, nodeId?: string, action?: ValidationIssue["action"]) => void
+) => {
   nodes.forEach(n => {
-    const cfg: any = n.data?.config || {}
+    const cfg = (n.data?.config || {}) as Record<string, unknown>
 
     if (n.type === "http_request") {
       if (!String(cfg.url || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin URL.`, n.id)
       if (!String(cfg.method || "").trim()) push("error", `HTTP_REQUEST "${nodeLabel(n)}" sin método.`, n.id)
       const timeout = Number(cfg.timeoutMs)
-      if (cfg.timeoutMs !== undefined && (!Number.isFinite(timeout) || timeout <= 0)) push("error", `HTTP_REQUEST "${nodeLabel(n)}" timeout inválido.`, n.id)
+      if (cfg.timeoutMs !== undefined && (!Number.isFinite(timeout) || timeout <= 0))
+        push("error", `HTTP_REQUEST "${nodeLabel(n)}" timeout inválido.`, n.id)
       const retries = Number(cfg.retries)
-      if (cfg.retries !== undefined && (!Number.isFinite(retries) || retries < 0)) push("error", `HTTP_REQUEST "${nodeLabel(n)}" retries inválido.`, n.id)
+      if (cfg.retries !== undefined && (!Number.isFinite(retries) || retries < 0))
+        push("error", `HTTP_REQUEST "${nodeLabel(n)}" retries inválido.`, n.id)
     }
 
-    /* RF-A25 — structural rules by type */
     if (n.type === "conditional") {
-      // Accept either legacy "condition" string OR structured operands
       const hasLegacy = String(cfg.condition || "").trim()
       const hasStructured = String(cfg.leftOperand || "").trim() && String(cfg.operator || "").trim()
       if (!hasLegacy && !hasStructured) {
@@ -157,6 +170,25 @@ export const validate = (nodes: FlowNode[], edges: FlowEdge[]): ValidationReport
       }
     }
   })
+}
+/* ── main validator ── */
+  export const validate = (nodes: FlowNode[], edges: FlowEdge[]): ValidationReport => {
+  const issues: ValidationIssue[] = []
+  const push = (severity: ValidationIssue["severity"], message: string, nodeId?: string, action?: ValidationIssue["action"]) => {
+    issues.push({ severity, message, nodeId, action: action ?? (nodeId ? "focus" : "none") })
+  }
+
+  const starts = validateStartNodes(nodes, push)
+  const startId = starts[0]?.id ?? null
+
+  if (detectCycle(nodes, edges)) {
+    push("error", "No se permiten ciclos en el workflow.")
+  }
+
+  const endId = validateEndNodes(nodes, edges, push)
+
+  validateReachability(nodes, edges, startId, endId, push)
+  validateNodeConfigs(nodes, edges, push)
 
   return {
     isValid: issues.filter(i => i.severity === "error").length === 0,
