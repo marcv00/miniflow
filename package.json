@@ -13,7 +13,10 @@
     "build:engine": "powershell -Command \"Remove-Item dist-java-engine -Recurse -Force -ErrorAction SilentlyContinue; cd java-engine; mvn clean package; cd ..; New-Item -ItemType Directory dist-java-engine | Out-Null; Copy-Item java-engine\\target\\java-engine-1.0-SNAPSHOT.jar dist-java-engine\\engine.jar -Force\"",
     "build:engine-mac": "cd java-engine && mvn clean package && cd .. && mkdir -p dist-java-engine && cp java-engine/target/java-engine-1.0-SNAPSHOT.jar dist-java-engine/engine.jar",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ui": "vitest --ui"
   },
   "dependencies": {
     "canvas-confetti": "^1.9.4",
@@ -30,15 +33,19 @@
     "@types/react": "^19.2.5",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.2.2",
+    "@vitest/coverage-v8": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
     "concurrently": "^9.2.1",
     "electron": "^40.0.0",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
     "globals": "^16.5.0",
+    "jsdom": "^28.1.0",
     "nodemon": "^3.1.11",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.4",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^4.0.18"
   }
 }
