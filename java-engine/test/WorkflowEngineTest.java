@@ -47,4 +47,39 @@ public class WorkflowEngineTest {
 
     }
 
+
+@Test
+void testWorkflowNoEncontrado() {
+
+    // ARRANGE
+
+    when(workflowRepository.findById("999"))
+            .thenReturn(null);
+
+    // ACT
+
+    String resultado = workflowEngine.executeWorkflow("999");
+
+    // ASSERT
+
+    assertEquals(null, resultado);
+
+    verify(workflowRepository).findById("999");
+
+}
+
+@Test
+void testVerificarLlamadaRepositorio() {
+
+    Workflow mockWorkflow = new Workflow("FLUJO_PRUEBA");
+
+    when(workflowRepository.findById("1"))
+            .thenReturn(mockWorkflow);
+
+    workflowEngine.executeWorkflow("1");
+
+    verify(workflowRepository).findById("1");
+
+}
+
 }
