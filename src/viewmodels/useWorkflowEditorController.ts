@@ -32,6 +32,13 @@ export function useWorkflowEditorController(
     /* ── Drag & Drop ── */
     const { onDragOver, onDrop } = useCanvasDnD(handlers);
 
+    /* ── Optimización: mapa de nodos para acceso O(1) ── */
+    const nodeMap = useMemo(() => {
+        const map = new Map<string, any>();
+        state.nodes.forEach((n: any) => map.set(n.id, n));
+        return map;
+    }, [state.nodes]);
+
     /* ── Node Actions for Context ── */
     const nodeActions = useMemo(() => ({
         onEdit: (nodeId: string) => handlers.setEditingNodeId(nodeId),
@@ -49,11 +56,15 @@ export function useWorkflowEditorController(
     const handleImportTextRequest = useCallback(() => { setImportJson(""); setImportOpen(true); }, []);
 
     const handleFocusNode = useCallback((nodeId: string) => {
-        const node = state.nodes.find((n: any) => n.id === nodeId);
-        if (node) {
-            reactFlowInstance.setCenter(node.position.x + 75, node.position.y + 25, { zoom: 1.5, duration: 400 });
-        }
-    }, [state.nodes, reactFlowInstance]);
+    const node = nodeMap.get(nodeId);
+    if (node) {
+        reactFlowInstance.setCenter(
+            node.position.x + 75,
+            node.position.y + 25,
+            { zoom: 1.5, duration: 400 }
+        );
+    }
+}, [nodeMap, reactFlowInstance]);
 
     const handleCloseConfigModal = useCallback(() => {
         handlers.setEditingNodeId(null);
